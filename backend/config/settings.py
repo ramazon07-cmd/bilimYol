@@ -11,7 +11,21 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-bilimyol-secret")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = [item.strip() for item in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if item.strip()]
+ALLOWED_HOSTS = [
+    item.strip()
+    for item in os.getenv(
+        "ALLOWED_HOSTS",
+        "localhost,127.0.0.1"
+    ).split(",")
+    if item.strip()
+]
+
+# Render o‘z domenini avtomatik qo‘shadi
+RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
 if DEBUG and "testserver" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append("testserver")
 
