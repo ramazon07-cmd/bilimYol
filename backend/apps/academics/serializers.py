@@ -44,7 +44,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ["id", "code", "subject", "subject_title", "topic", "topic_title", "skills", "skill_details", "prompt", "explanation", "difficulty", "default_points", "image_url", "is_active", "options", "created_at", "updated_at"]
+        fields = ["id", "code", "subject", "subject_title", "topic", "topic_title", "skills", "skill_details", "prompt", "explanation", "difficulty", "min_grade", "max_grade", "default_points", "image_url", "is_active", "options", "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]
 
     def validate_options(self, options):
@@ -99,10 +99,11 @@ class ExamSerializer(serializers.ModelSerializer):
     exam_questions = ExamQuestionSerializer(many=True)
     created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
     target_classroom_names = serializers.SlugRelatedField(source="target_classrooms", many=True, read_only=True, slug_field="name")
+    recommended_category_names = serializers.SlugRelatedField(source="recommended_categories", many=True, read_only=True, slug_field="title")
 
     class Meta:
         model = Exam
-        fields = ["id", "title", "grade", "description", "duration_minutes", "max_score", "readiness_threshold", "minimum_subject_score", "starts_at", "ends_at", "status", "target_classrooms", "target_classroom_names", "subject_weights", "exam_questions", "created_by", "created_by_name", "created_at", "updated_at"]
+        fields = ["id", "title", "grade", "purpose", "description", "duration_minutes", "max_score", "readiness_threshold", "minimum_subject_score", "starts_at", "ends_at", "status", "target_classrooms", "target_classroom_names", "recommended_categories", "recommended_category_names", "subject_weights", "exam_questions", "created_by", "created_by_name", "created_at", "updated_at"]
         read_only_fields = ["created_by", "created_at", "updated_at"]
 
     def validate_subject_weights(self, weights):
@@ -118,8 +119,10 @@ class ExamSerializer(serializers.ModelSerializer):
         weights = validated_data.pop("subject_weights", [])
         questions = validated_data.pop("exam_questions", [])
         target_classrooms = validated_data.pop("target_classrooms", [])
+        recommended_categories = validated_data.pop("recommended_categories", [])
         exam = Exam.objects.create(created_by=self.context["request"].user, **validated_data)
         exam.target_classrooms.set(target_classrooms)
+        exam.recommended_categories.set(recommended_categories)
         ExamSubjectWeight.objects.bulk_create([ExamSubjectWeight(exam=exam, **item) for item in weights])
         ExamQuestion.objects.bulk_create([ExamQuestion(exam=exam, **item) for item in questions])
         return exam
@@ -129,11 +132,14 @@ class ExamSerializer(serializers.ModelSerializer):
         weights = validated_data.pop("subject_weights", None)
         questions = validated_data.pop("exam_questions", None)
         target_classrooms = validated_data.pop("target_classrooms", None)
+        recommended_categories = validated_data.pop("recommended_categories", None)
         for key, value in validated_data.items():
             setattr(instance, key, value)
         instance.save()
         if target_classrooms is not None:
             instance.target_classrooms.set(target_classrooms)
+        if recommended_categories is not None:
+            instance.recommended_categories.set(recommended_categories)
         if weights is not None:
             instance.subject_weights.all().delete()
             ExamSubjectWeight.objects.bulk_create([ExamSubjectWeight(exam=instance, **item) for item in weights])

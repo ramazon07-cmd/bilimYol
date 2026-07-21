@@ -106,3 +106,124 @@ class BilimYolApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 201)
         self.assertFalse(Certificate.objects.get(id=response.data["id"]).is_verified)
+
+
+class AdministeredProfilingFlowTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo", verbosity=0)
+
+    def setUp(self):
+        token = self.client.post(
+            "/api/auth/token/",
+            {"username": "admin", "password": "admin12345"},
+            format="json",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.data['access']}")
+
+    def test_admin_can_run_full_profile_to_roadmap_flow(self):
+        category = self.client.get("/api/categories/?code=presidential-school").data["results"][0]
+        onboard = self.client.post(
+            "/api/student-profiles/onboard/",
+            {
+                "username": "new-student",
+                "password": "student123",
+                "full_name": "Ali Valiyev",
+                "phone": "+998901112233",
+                "email": "",
+                "birth_date": "2013-05-10",
+                "school_name": "15-maktab",
+                "grade": 8,
+                "region": "Sirdaryo",
+                "district": "Yangiyer",
+                "weekly_study_hours": 9,
+                "guardian_name": "Vali Valiyev",
+                "guardian_phone": "+998909998877",
+                "guardian_relationship": "Ota",
+            },
+            format="json",
+        )
+        self.assertEqual(onboard.status_code, 201)
+        profile_id = onboard.data["id"]
+        student_id = onboard.data["student"]["id"]
+
+        interview = self.client.post(
+            "/api/student-interviews/",
+            {
+                "profile": profile_id,
+                "strengths": "Mantiq",
+                "weaknesses": "Algebra",
+                "main_problem": "Poydevor",
+                "motivation_level": "high",
+                "independence_level": "medium",
+                "parent_support_level": "high",
+                "admin_summary": "Poydevorni mustahkamlash kerak.",
+                "next_step": "Diagnostika",
+                "answers": [],
+            },
+            format="json",
+        )
+        self.assertEqual(interview.status_code, 201)
+        goal = self.client.post(
+            "/api/student-goals/",
+            {
+                "profile": profile_id,
+                "goal_type": "presidential_school",
+                "title": "Prezident maktabiga kirish",
+                "target_score": 88,
+                "priority": 1,
+                "is_primary": True,
+                "is_active": True,
+            },
+            format="json",
+        )
+        self.assertEqual(goal.status_code, 201)
+        link = self.client.post(
+            "/api/student-categories/",
+            {
+                "profile": profile_id,
+                "category": category["id"],
+                "source": "interview",
+                "confidence": 95,
+                "is_active": True,
+            },
+            format="json",
+        )
+        self.assertEqual(link.status_code, 201)
+        completed = self.client.post(f"/api/student-profiles/{profile_id}/complete-interview/", {}, format="json")
+        self.assertEqual(completed.status_code, 200)
+
+        recommendation = self.client.get(f"/api/student-profiles/{profile_id}/recommend-tests/")
+        self.assertEqual(recommendation.status_code, 200)
+        self.assertGreater(len(recommendation.data["tests"]), 0)
+        exam = recommendation.data["tests"][0]
+
+        assignment = self.client.post(
+            f"/api/exams/{exam['id']}/assign-student/",
+            {"student": student_id, "classroom": None, "delivery_mode": "administered"},
+            format="json",
+        )
+        self.assertEqual(assignment.status_code, 200)
+        started = self.client.post(f"/api/assignments/{assignment.data['assignment']}/start/", {}, format="json")
+        self.assertEqual(started.status_code, 201)
+        attempt_id = started.data["id"]
+
+        for exam_question in exam["exam_questions"]:
+            correct_option = exam_question["question_detail"]["options"][0]
+            answer = self.client.post(
+                f"/api/attempts/{attempt_id}/answer/",
+                {
+                    "exam_question": exam_question["id"],
+                    "selected_option": correct_option["id"],
+                    "is_flagged": False,
+                },
+                format="json",
+            )
+            self.assertEqual(answer.status_code, 200)
+
+        report = self.client.post(f"/api/attempts/{attempt_id}/submit/", {}, format="json")
+        self.assertEqual(report.status_code, 200)
+        self.assertEqual(report.data["student"]["id"], student_id)
+        self.assertEqual(report.data["roadmap"]["weekly_hours"], 9)
+        self.assertEqual(report.data["roadmap"]["primary_goal_title"], "Prezident maktabiga kirish")
+        self.assertEqual(report.data["roadmap"]["generation_context"]["grade"], 8)

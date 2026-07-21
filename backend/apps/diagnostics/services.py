@@ -6,7 +6,16 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import DiagnosticReport, ExamAttempt, Roadmap, RoadmapStage, SkillResult, SubjectResult, TopicResult, WeeklyTask
+from .models import (
+    DiagnosticReport,
+    ExamAttempt,
+    Roadmap,
+    RoadmapStage,
+    SkillResult,
+    SubjectResult,
+    TopicResult,
+    WeeklyTask,
+)
 
 
 def rounded(value) -> Decimal:
@@ -35,14 +44,22 @@ def confidence_for(question_count: int) -> str:
 
 
 @transaction.atomic
-def submit_attempt(attempt: ExamAttempt) -> DiagnosticReport:
+def submit_attempt(attempt: ExamAttempt, submitted_by=None) -> DiagnosticReport:
     if attempt.status != ExamAttempt.Status.IN_PROGRESS:
         raise ValidationError("Bu urinish allaqachon yakunlangan.")
 
     exam = attempt.assignment.exam
-    exam_questions = list(exam.exam_questions.select_related("question__subject", "question__topic").prefetch_related("question__skills", "question__options"))
-    answers = {answer.exam_question_id: answer for answer in attempt.answers.select_related("selected_option")}
+    exam_questions = list(
+        exam.exam_questions.select_related("question__subject", "question__topic")
+        .prefetch_related("question__skills", "question__options")
+    )
+    if not exam_questions:
+        raise ValidationError("Imtihonda savollar mavjud emas.")
 
+    answers = {
+        answer.exam_question_id: answer
+        for answer in attempt.answers.select_related("selected_option")
+    }
     subject_data = defaultdict(lambda: {"earned": Decimal("0"), "possible": Decimal("0")})
     topic_data = defaultdict(lambda: {"earned": Decimal("0"), "possible": Decimal("0"), "count": 0})
     skill_data = defaultdict(lambda: {"earned": Decimal("0"), "possible": Decimal("0"), "count": 0})
@@ -50,7 +67,11 @@ def submit_attempt(attempt: ExamAttempt) -> DiagnosticReport:
 
     for exam_question in exam_questions:
         answer = answers.get(exam_question.id)
-        is_correct = bool(answer and answer.selected_option.question_id == exam_question.question_id and answer.selected_option.is_correct)
+        is_correct = bool(
+            answer
+            and answer.selected_option.question_id == exam_question.question_id
+            and answer.selected_option.is_correct
+        )
         earned = exam_question.points if is_correct else Decimal("0")
         if answer:
             answer.is_correct = is_correct
@@ -79,14 +100,23 @@ def submit_attempt(attempt: ExamAttempt) -> DiagnosticReport:
         weight_percent = weight.weight_percent if weight else Decimal("0")
         weighted_score += score * weight_percent / 100
 
+    # If weights were not configured, fall back to a simple average instead of returning zero.
+    if subject_scores and not any(item.weight_percent for item in weights.values()):
+        weighted_score = sum(subject_scores.values(), Decimal("0")) / len(subject_scores)
+
     overall = rounded(weighted_score)
-    ready = overall >= exam.readiness_threshold and all(score >= exam.minimum_subject_score for score in subject_scores.values())
+    ready = overall >= exam.readiness_threshold and all(
+        score >= exam.minimum_subject_score for score in subject_scores.values()
+    )
     attempt.status = ExamAttempt.Status.EXPIRED if timezone.now() > attempt.expires_at else ExamAttempt.Status.SUBMITTED
     attempt.submitted_at = timezone.now()
+    attempt.submitted_by = submitted_by
     attempt.earned_points = total_earned
     attempt.overall_score = overall
     attempt.is_ready = ready
-    attempt.save(update_fields=["status", "submitted_at", "earned_points", "overall_score", "is_ready"])
+    attempt.save(update_fields=[
+        "status", "submitted_at", "submitted_by", "earned_points", "overall_score", "is_ready",
+    ])
 
     report, _ = DiagnosticReport.objects.update_or_create(
         attempt=attempt,
@@ -103,23 +133,20 @@ def submit_attempt(attempt: ExamAttempt) -> DiagnosticReport:
     report.topic_results.all().delete()
     report.skill_results.all().delete()
 
-    subject_results = []
-    for subject_id, data in subject_data.items():
-        score = subject_scores[subject_id]
-        weight = weights.get(subject_id)
-        subject_results.append(SubjectResult(
+    SubjectResult.objects.bulk_create([
+        SubjectResult(
             report=report,
             subject_id=subject_id,
             earned_points=data["earned"],
             possible_points=data["possible"],
-            score=score,
-            weight_percent=weight.weight_percent if weight else 0,
-            level=score_level(score),
-            percentile=max(1, min(99, int(score * Decimal("0.82")))),
-            potential=min(100, int(score + (100 - score) * Decimal("0.55"))),
-        ))
-    SubjectResult.objects.bulk_create(subject_results)
-
+            score=subject_scores[subject_id],
+            weight_percent=weights.get(subject_id).weight_percent if weights.get(subject_id) else 0,
+            level=score_level(subject_scores[subject_id]),
+            percentile=max(1, min(99, int(subject_scores[subject_id] * Decimal("0.82")))),
+            potential=min(100, int(subject_scores[subject_id] + (100 - subject_scores[subject_id]) * Decimal("0.55"))),
+        )
+        for subject_id, data in subject_data.items()
+    ])
     TopicResult.objects.bulk_create([
         TopicResult(
             report=report,
@@ -129,7 +156,8 @@ def submit_attempt(attempt: ExamAttempt) -> DiagnosticReport:
             score=rounded((data["earned"] / data["possible"] * 100) if data["possible"] else 0),
             question_count=data["count"],
             confidence=confidence_for(data["count"]),
-        ) for topic_id, data in topic_data.items()
+        )
+        for topic_id, data in topic_data.items()
     ])
     SkillResult.objects.bulk_create([
         SkillResult(
@@ -140,8 +168,14 @@ def submit_attempt(attempt: ExamAttempt) -> DiagnosticReport:
             score=rounded((data["earned"] / data["possible"] * 100) if data["possible"] else 0),
             question_count=data["count"],
             confidence=confidence_for(data["count"]),
-        ) for skill_id, data in skill_data.items()
+        )
+        for skill_id, data in skill_data.items()
     ])
+
+    profile = getattr(attempt.assignment.student, "student_profile", None)
+    if profile:
+        profile.status = profile.Status.DIAGNOSED
+        profile.save(update_fields=["status", "updated_at"])
     build_roadmap(report)
     return report
 
@@ -149,18 +183,60 @@ def submit_attempt(attempt: ExamAttempt) -> DiagnosticReport:
 @transaction.atomic
 def build_roadmap(report: DiagnosticReport) -> Roadmap:
     student = report.attempt.assignment.student
-    roadmap, _ = Roadmap.objects.update_or_create(report=report, defaults={"student": student, "target_score": 85, "weekly_hours": 5, "status": Roadmap.Status.DRAFT})
+    profile = getattr(student, "student_profile", None)
+    primary_goal = None
+    categories = []
+    weekly_hours = 5
+    target_score = 85
+    interview_summary = ""
+
+    if profile:
+        primary_goal = profile.goals.filter(is_primary=True, is_active=True).first()
+        if not primary_goal:
+            primary_goal = profile.goals.filter(is_active=True).order_by("priority").first()
+        categories = list(
+            profile.category_links.filter(is_active=True).values_list("category__title", flat=True)
+        )
+        weekly_hours = max(1, profile.weekly_study_hours)
+        if primary_goal and primary_goal.target_score:
+            target_score = primary_goal.target_score
+        interview = profile.interviews.filter(status="completed").order_by("-completed_at").first()
+        if interview:
+            interview_summary = interview.admin_summary
+
+    generation_context = {
+        "grade": profile.grade if profile else None,
+        "weekly_study_hours": weekly_hours,
+        "goal": primary_goal.title if primary_goal else None,
+        "categories": categories,
+        "interview_summary": interview_summary,
+    }
+    roadmap, _ = Roadmap.objects.update_or_create(
+        report=report,
+        defaults={
+            "student": student,
+            "primary_goal": primary_goal,
+            "target_score": target_score,
+            "weekly_hours": weekly_hours,
+            "generation_context": generation_context,
+            "status": Roadmap.Status.DRAFT,
+        },
+    )
     roadmap.stages.all().delete()
-    weakest_topics = list(report.topic_results.select_related("topic__subject").order_by("score", "-question_count")[:3])
+    weakest_topics = list(
+        report.topic_results.select_related("topic__subject").order_by("score", "-question_count")[:3]
+    )
     if not weakest_topics:
         return roadmap
+
     current = int(report.overall_score)
     month_ranges = [(0, 3), (3, 6), (6, 12)]
-    targets = [min(60, current + 20), min(75, current + 35), 85]
+    target_candidates = [min(60, current + 20), min(75, current + 35), target_score]
+    per_stage_hours = max(1, round(weekly_hours / len(weakest_topics)))
     created_stages = []
     for index, topic_result in enumerate(weakest_topics):
         start_month, end_month = month_ranges[index]
-        start_score = current if index == 0 else targets[index - 1]
+        start_score = current if index == 0 else target_candidates[index - 1]
         stage = RoadmapStage.objects.create(
             roadmap=roadmap,
             subject=topic_result.topic.subject,
@@ -170,9 +246,13 @@ def build_roadmap(report: DiagnosticReport) -> Roadmap:
             start_month=start_month,
             end_month=end_month,
             start_score=start_score,
-            target_score=targets[index],
-            weekly_hours=5 if index == 0 else 4,
-            rationale=f"Diagnostikada {topic_result.score}/100; sog‘lom chegara {topic_result.topic.healthy_threshold}.",
+            target_score=target_candidates[index],
+            weekly_hours=per_stage_hours,
+            rationale=(
+                f"Diagnostikada {topic_result.score}/100. "
+                f"Asosiy maqsad: {primary_goal.title if primary_goal else 'umumiy rivojlanish'}. "
+                f"Admin kategoriyalari: {', '.join(categories) if categories else 'belgilanmagan'}."
+            ),
         )
         created_stages.append(stage)
 
@@ -185,16 +265,44 @@ def build_roadmap(report: DiagnosticReport) -> Roadmap:
         (5, "Umumiy takror", "Oldingi fokuslardan aralash mashq"),
         (6, "Mini-diagnostika", "Natijani qayta o‘lchash va roadmapni yangilash"),
     ]
-    WeeklyTask.objects.bulk_create([WeeklyTask(stage=first, week_number=week, audience=WeeklyTask.Audience.STUDENT, title=title, description=description) for week, title, description in weekly_copy])
-    WeeklyTask.objects.create(stage=first, week_number=1, audience=WeeklyTask.Audience.TEACHER, title="Fokus dars", description="Darsda fokus mavzuga 10 daqiqa ajrating va progressni kuzating.")
-    WeeklyTask.objects.create(stage=first, week_number=1, audience=WeeklyTask.Audience.PARENT, title="O‘qish ritmi", description="Kunlik mashq vaqtini kalendarga kiriting va xato daftarini haftada bir ko‘ring.")
+    WeeklyTask.objects.bulk_create([
+        WeeklyTask(
+            stage=first,
+            week_number=week,
+            audience=WeeklyTask.Audience.STUDENT,
+            title=title,
+            description=description,
+        )
+        for week, title, description in weekly_copy
+    ])
+    WeeklyTask.objects.create(
+        stage=first,
+        week_number=1,
+        audience=WeeklyTask.Audience.TEACHER,
+        title="Fokus dars",
+        description="Darsda fokus mavzuga 10 daqiqa ajrating va progressni kuzating.",
+    )
+    WeeklyTask.objects.create(
+        stage=first,
+        week_number=1,
+        audience=WeeklyTask.Audience.PARENT,
+        title="O‘qish ritmi",
+        description="Kunlik mashq vaqtini kalendarga kiriting va xato daftarini haftada bir ko‘ring.",
+    )
+    if profile:
+        profile.status = profile.Status.ROADMAP_DRAFT
+        profile.save(update_fields=["status", "updated_at"])
     return roadmap
 
 
-def start_attempt(assignment):
+def start_attempt(assignment, started_by=None):
     existing = assignment.attempts.filter(status=ExamAttempt.Status.IN_PROGRESS).first()
     if existing:
         return existing
     if assignment.attempts.filter(status=ExamAttempt.Status.SUBMITTED).exists():
         raise ValidationError("Bu imtihon uchun urinish allaqachon yakunlangan.")
-    return ExamAttempt.objects.create(assignment=assignment, expires_at=timezone.now() + timedelta(minutes=assignment.exam.duration_minutes))
+    return ExamAttempt.objects.create(
+        assignment=assignment,
+        started_by=started_by,
+        expires_at=timezone.now() + timedelta(minutes=assignment.exam.duration_minutes),
+    )

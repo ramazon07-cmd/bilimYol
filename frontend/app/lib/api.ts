@@ -25,8 +25,18 @@ export type LiveDiagnosticReport = {
   range_high: string | number;
   expected_score: string | number;
   readiness: "ready" | "not_ready";
-  student: { full_name: string; username: string };
+  summary?: string;
+  generated_at?: string;
+  student: { id?: number; full_name: string; username: string };
+  exam?: { id: number; title: string; grade: number | null; purpose?: string };
   subject_results: LiveSubjectResult[];
+  roadmap?: {
+    id: number;
+    status: string;
+    target_score: number;
+    weekly_hours: number;
+    primary_goal_title?: string | null;
+  } | null;
 };
 
 export type LiveDashboard = {
@@ -54,7 +64,13 @@ export type LiveUniversityGoal = {
   id: number;
   target_year: number;
   university_detail: { id: number; name: string; country: string; city: string };
-  progress: { overall: number; status: string; latest_mock: string | null; latest_mock_score: number | null; requirements: LiveUniversityRequirement[] };
+  progress: {
+    overall: number;
+    status: string;
+    latest_mock: string | null;
+    latest_mock_score: number | null;
+    requirements: LiveUniversityRequirement[];
+  };
 };
 
 export type WorkspaceSession = {
@@ -63,6 +79,13 @@ export type WorkspaceSession = {
   dashboard: LiveDashboard;
   report: LiveDiagnosticReport | null;
   university_goal: LiveUniversityGoal | null;
+};
+
+export type PaginatedResponse<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
 };
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
@@ -96,10 +119,108 @@ export function createDemoWorkspace(role: UserRole): WorkspaceSession {
   return { role, user: demoUsers[role], dashboard: demoDashboards[role], report: null, university_goal: null };
 }
 
-async function authorizedJson<T>(path: string, token: string): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new Error("Kabinet ma’lumotlarini yuklab bo‘lmadi.");
-  return response.json() as Promise<T>;
+const ACCESS_TOKEN_KEY = "bilimyol_access";
+const REFRESH_TOKEN_KEY = "bilimyol_refresh";
+
+function readStoredToken(key: string) {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
+}
+
+function storeTokens(tokens: { access: string; refresh?: string }) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access);
+  if (tokens.refresh) window.localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh);
+  window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function getAccessToken() {
+  return readStoredToken(ACCESS_TOKEN_KEY);
+}
+
+function getRefreshToken() {
+  return readStoredToken(REFRESH_TOKEN_KEY);
+}
+
+async function refreshAccessToken() {
+  if (!apiBase) return null;
+  const refresh = getRefreshToken();
+  if (!refresh) return null;
+
+  const response = await fetch(`${apiBase}/auth/token/refresh/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh }),
+  });
+
+  if (!response.ok) return null;
+  const tokens = await response.json() as { access: string; refresh?: string };
+  storeTokens({ access: tokens.access, refresh: tokens.refresh ?? refresh });
+  return tokens.access;
+}
+
+async function fetchWithAuth(path: string, options: RequestInit, allowRefresh = true) {
+  const headers = new Headers(options.headers);
+  if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
+  const access = getAccessToken();
+  if (access) headers.set("Authorization", `Bearer ${access}`);
+
+  let response = await fetch(`${apiBase}${path}`, { ...options, headers });
+  if (response.status === 401 && allowRefresh) {
+    const newAccess = await refreshAccessToken();
+    if (newAccess) {
+      headers.set("Authorization", `Bearer ${newAccess}`);
+      response = await fetch(`${apiBase}${path}`, { ...options, headers });
+    }
+  }
+  return response;
+}
+
+export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!apiBase) throw new Error("API manzili sozlanmagan.");
+  const response = await fetchWithAuth(path, options);
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok) {
+    const detail = typeof payload?.detail === "string" ? payload.detail : null;
+    const fieldEntries = payload ? Object.entries(payload) : [];
+    const firstFieldEntry = fieldEntries.find(([, value]) => Array.isArray(value) && typeof value[0] === "string");
+
+    const fieldName = firstFieldEntry?.[0] ?? "";
+    const rawFieldMessage = firstFieldEntry && Array.isArray(firstFieldEntry[1])
+      ? String(firstFieldEntry[1][0])
+      : null;
+
+    const translatedFieldMessage = fieldName === "weekly_study_hours"
+      ? "Haftalik vaqt 1 dan 50 soatgacha bo‘lishi kerak."
+      : fieldName === "target_score"
+        ? "Maqsad balli 0 dan 100 gacha bo‘lishi kerak."
+        : fieldName === "username"
+          ? "Bu login band yoki noto‘g‘ri kiritilgan."
+          : rawFieldMessage;
+
+    throw new Error(detail ?? translatedFieldMessage ?? "Server bilan ishlashda xatolik yuz berdi.");
+  }
+  return payload as T;
+}
+
+async function loadWorkspaceSession(): Promise<WorkspaceSession> {
+  const [user, dashboard] = await Promise.all([
+    apiRequest<LiveUser>("/auth/me/"),
+    apiRequest<LiveDashboard>("/dashboard/"),
+  ]);
+
+  const [reportResult, goalResult] = await Promise.allSettled([
+    apiRequest<PaginatedResponse<LiveDiagnosticReport> | LiveDiagnosticReport[]>("/reports/?page_size=1"),
+    apiRequest<PaginatedResponse<LiveUniversityGoal> | LiveUniversityGoal[]>("/university-goals/?page_size=1"),
+  ]);
+
+  const reportPayload = reportResult.status === "fulfilled" ? reportResult.value : [];
+  const goalPayload = goalResult.status === "fulfilled" ? goalResult.value : [];
+  const reports = Array.isArray(reportPayload) ? reportPayload : reportPayload.results ?? [];
+  const goals = Array.isArray(goalPayload) ? goalPayload : goalPayload.results ?? [];
+
+  return { role: user.role, user, dashboard, report: reports[0] ?? null, university_goal: goals[0] ?? null };
 }
 
 export async function loginWorkspace(username: string, password: string): Promise<WorkspaceSession> {
@@ -111,22 +232,26 @@ export async function loginWorkspace(username: string, password: string): Promis
     body: JSON.stringify({ username: normalizedUsername, password }),
   });
   if (!tokenResponse.ok) throw new Error("Login yoki parol noto‘g‘ri.");
-  const tokens = await tokenResponse.json();
-  sessionStorage.setItem("bilimyol_access", tokens.access);
-  sessionStorage.setItem("bilimyol_refresh", tokens.refresh);
+  const tokens = await tokenResponse.json() as { access: string; refresh: string };
+  storeTokens(tokens);
+  return loadWorkspaceSession();
+}
 
-  const [user, dashboard, reportPayload, goalPayload] = await Promise.all([
-    authorizedJson<LiveUser>("/auth/me/", tokens.access),
-    authorizedJson<LiveDashboard>("/dashboard/", tokens.access),
-    authorizedJson<{ results?: LiveDiagnosticReport[] } | LiveDiagnosticReport[]>("/reports/?page_size=1", tokens.access),
-    authorizedJson<{ results?: LiveUniversityGoal[] } | LiveUniversityGoal[]>("/university-goals/?page_size=1", tokens.access),
-  ]);
-  const reports = Array.isArray(reportPayload) ? reportPayload : reportPayload.results ?? [];
-  const goals = Array.isArray(goalPayload) ? goalPayload : goalPayload.results ?? [];
-  return { role: user.role, user, dashboard, report: reports[0] ?? null, university_goal: goals[0] ?? null };
+export async function restoreWorkspaceSession(): Promise<WorkspaceSession | null> {
+  if (!apiBase || (!getAccessToken() && !getRefreshToken())) return null;
+  try {
+    return await loadWorkspaceSession();
+  } catch {
+    clearApiSession();
+    return null;
+  }
 }
 
 export function clearApiSession() {
-  sessionStorage.removeItem("bilimyol_access");
-  sessionStorage.removeItem("bilimyol_refresh");
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
 }
+

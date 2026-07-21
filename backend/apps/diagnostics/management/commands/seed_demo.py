@@ -9,6 +9,7 @@ from apps.academics.models import Exam, ExamQuestion, ExamSubjectWeight, Questio
 from apps.diagnostics.models import ExamAssignment, ExamAttempt, StudentAnswer
 from apps.diagnostics.services import submit_attempt
 from apps.pathways.models import Certificate, University, UniversityGoal
+from apps.profiling.models import Category, GuardianContact, StudentCategory, StudentGoal, StudentInterview, StudentProfile
 
 
 User = get_user_model()
@@ -24,7 +25,7 @@ class Command(BaseCommand):
         parent = self.user("parent", "Otabek Xasanboyev", User.Role.PARENT, "parent123")
 
         classrooms = {}
-        for grade in range(5, 10):
+        for grade in range(5, 12):
             classrooms[grade], _ = Classroom.objects.update_or_create(
                 name=f"{grade}-A",
                 defaults={"grade": grade, "program": "Prezident maktabiga tayyorgarlik", "teacher": teacher, "is_active": True},
@@ -32,6 +33,92 @@ class Command(BaseCommand):
         classroom = classrooms[8]
         ClassroomStudent.objects.get_or_create(classroom=classroom, student=student)
         ParentStudent.objects.get_or_create(parent=parent, student=student, defaults={"relationship": "Ota"})
+
+        profile, _ = StudentProfile.objects.update_or_create(
+            student=student,
+            defaults={
+                "school_name": "Rustam Bosimov School",
+                "grade": 8,
+                "region": "Sirdaryo",
+                "weekly_study_hours": 8,
+                "assigned_admin": admin,
+                "assigned_teacher": teacher,
+                "status": StudentProfile.Status.ACTIVE,
+            },
+        )
+        GuardianContact.objects.update_or_create(
+            profile=profile,
+            phone=parent.phone or "+998901234567",
+            defaults={
+                "full_name": parent.full_name,
+                "relationship": "Ota",
+                "is_primary": True,
+            },
+        )
+        presidential_category, _ = Category.objects.update_or_create(
+            code="presidential-school",
+            defaults={
+                "title": "Prezident maktabiga tayyorgarlik",
+                "kind": Category.Kind.DIRECTION,
+                "is_active": True,
+            },
+        )
+        math_basic, _ = Category.objects.update_or_create(
+            code="math-basic",
+            defaults={
+                "title": "Matematika · boshlang‘ich",
+                "kind": Category.Kind.SUBJECT_LEVEL,
+                "subject_slug": "math",
+                "is_active": True,
+            },
+        )
+        high_motivation, _ = Category.objects.update_or_create(
+            code="high-motivation",
+            defaults={
+                "title": "Yuqori motivatsiya",
+                "kind": Category.Kind.MOTIVATION,
+                "is_active": True,
+            },
+        )
+        for category in [presidential_category, math_basic, high_motivation]:
+            StudentCategory.objects.get_or_create(
+                profile=profile,
+                category=category,
+                defaults={
+                    "source": StudentCategory.Source.INTERVIEW,
+                    "confidence": 90,
+                    "assigned_by": admin,
+                },
+            )
+        StudentGoal.objects.update_or_create(
+            profile=profile,
+            is_primary=True,
+            defaults={
+                "goal_type": StudentGoal.GoalType.PRESIDENTIAL_SCHOOL,
+                "title": "Prezident maktabiga kirish",
+                "target_value": "Qabul imtihonidan yuqori natija",
+                "target_score": 85,
+                "priority": 1,
+                "is_active": True,
+                "created_by": admin,
+            },
+        )
+        StudentInterview.objects.update_or_create(
+            profile=profile,
+            interviewer=admin,
+            defaults={
+                "status": StudentInterview.Status.COMPLETED,
+                "strengths": "Mantiqiy fikrlash va intizom",
+                "weaknesses": "Algebra poydevori",
+                "main_problem": "Murakkab masalalarda yechim strategiyasi yetishmaydi",
+                "motivation_level": "high",
+                "independence_level": "medium",
+                "parent_support_level": "high",
+                "admin_summary": "Yuqori motivatsiyali, lekin matematika poydevorini mustahkamlash kerak.",
+                "next_step": "Mos diagnostik test",
+                "completed_at": timezone.now(),
+            },
+        )
 
         subject_specs = [
             ("math", "Matematika", "#c8564e"),
@@ -96,23 +183,33 @@ class Command(BaseCommand):
                         "prompt": prompt,
                         "explanation": "To‘g‘ri javob mavzuning asosiy qoidasiga tayanadi.",
                         "difficulty": Question.Difficulty.BASIC if index == 0 else Question.Difficulty.MEDIUM if index < 3 else Question.Difficulty.HIGH,
+                        "min_grade": 5,
+                        "max_grade": 9,
                         "default_points": 25,
                         "is_active": True,
                         "created_by": admin,
                     },
                 )
                 question.skills.set([skills[slug][index % len(skills[slug])]])
-                question.options.all().delete()
-                QuestionOption.objects.bulk_create([
-                    QuestionOption(question=question, label=chr(65 + option_index), text=text, is_correct=option_index == 0, order=option_index)
-                    for option_index, text in enumerate(options_text)
-                ])
+                for option_index, text in enumerate(options_text):
+                    label = chr(65 + option_index)
+
+                QuestionOption.objects.update_or_create(
+                    question=question,
+                    label=label,
+                    defaults={
+                        "text": text,
+                        "is_correct": option_index == 0,
+                        "order": option_index,
+                    },
+                )
                 questions.append(question)
 
         exam, _ = Exam.objects.update_or_create(
             title="8-A · IQ / Math / English Mock #1",
             defaults={
                 "grade": 8,
+                "purpose": Exam.Purpose.PRESIDENTIAL_SCHOOL,
                 "description": "8-sinf uchun IQ, Matematika va English diagnostik testi — har bir fan 100 ballik.",
                 "duration_minutes": 90,
                 "max_score": 100,
@@ -125,14 +222,26 @@ class Command(BaseCommand):
             },
         )
         exam.target_classrooms.set([classroom])
+        exam.recommended_categories.set([presidential_category])
         exam.subject_weights.all().delete()
         ExamSubjectWeight.objects.bulk_create([
             ExamSubjectWeight(exam=exam, subject=subjects["math"], weight_percent=35, max_score=100),
             ExamSubjectWeight(exam=exam, subject=subjects["english"], weight_percent=35, max_score=100),
             ExamSubjectWeight(exam=exam, subject=subjects["iq"], weight_percent=30, max_score=100),
         ])
-        exam.exam_questions.all().delete()
-        exam_questions = [ExamQuestion.objects.create(exam=exam, question=question, points=25, order=index + 1) for index, question in enumerate(questions)]
+        exam_questions = []
+
+        for index, question in enumerate(questions):
+            exam_question, _ = ExamQuestion.objects.update_or_create(
+                exam=exam,
+                question=question,
+                defaults={
+                    "points": 25,
+                    "order": index + 1,
+                },
+            )
+
+            exam_questions.append(exam_question)
 
         for grade, target_classroom in classrooms.items():
             if grade == 8:
@@ -141,6 +250,7 @@ class Command(BaseCommand):
                 title=f"{grade}-sinf · IQ / Math / English Mock #1",
                 defaults={
                     "grade": grade,
+                    "purpose": Exam.Purpose.PRESIDENTIAL_SCHOOL,
                     "description": f"{grade}-sinfga moslashtirilgan uch fan testi. Har bir fan 100 ballik shkala bilan tahlil qilinadi.",
                     "duration_minutes": 75 if grade < 7 else 90,
                     "max_score": 100,
@@ -153,17 +263,22 @@ class Command(BaseCommand):
                 },
             )
             grade_exam.target_classrooms.set([target_classroom])
+            grade_exam.recommended_categories.set([presidential_category])
             grade_exam.subject_weights.all().delete()
             ExamSubjectWeight.objects.bulk_create([
                 ExamSubjectWeight(exam=grade_exam, subject=subjects["iq"], weight_percent=30, max_score=100),
                 ExamSubjectWeight(exam=grade_exam, subject=subjects["math"], weight_percent=35, max_score=100),
                 ExamSubjectWeight(exam=grade_exam, subject=subjects["english"], weight_percent=35, max_score=100),
             ])
-            grade_exam.exam_questions.all().delete()
-            ExamQuestion.objects.bulk_create([
-                ExamQuestion(exam=grade_exam, question=question, points=25, order=index + 1)
-                for index, question in enumerate(questions)
-            ])
+            for index, question in enumerate(questions):
+                ExamQuestion.objects.update_or_create(
+                    exam=grade_exam,
+                    question=question,
+                    defaults={
+                        "points": 25,
+                        "order": index + 1,
+                    },
+                )
         assignment, _ = ExamAssignment.objects.update_or_create(exam=exam, student=student, defaults={"classroom": classroom, "is_active": True, "assigned_by": teacher, "due_at": timezone.now() + timedelta(days=7)})
 
         if not assignment.attempts.filter(status=ExamAttempt.Status.SUBMITTED).exists():

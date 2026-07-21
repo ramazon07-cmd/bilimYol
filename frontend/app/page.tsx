@@ -48,6 +48,7 @@ import {
   demoCredentials,
   hasLiveApi,
   loginWorkspace,
+  restoreWorkspaceSession,
   type LiveDiagnosticReport,
   type UserRole,
   type WorkspaceSession,
@@ -832,14 +833,29 @@ function ReportApp({
 
 export default function Home() {
   const [session, setSession] = useState<WorkspaceSession | null>(null);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [viewingReport, setViewingReport] = useState(false);
-  const [adminExamResult, setAdminExamResult] = useState<MiniExamResult | null>(null);
-  const logout = () => { clearApiSession(); setSession(null); setViewingReport(false); setAdminExamResult(null); };
+  const [adminDiagnosticReport, setAdminDiagnosticReport] = useState<LiveDiagnosticReport | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    restoreWorkspaceSession()
+      .then((restored) => {
+        if (active && restored) setSession(restored);
+      })
+      .finally(() => {
+        if (active) setRestoringSession(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const logout = () => { clearApiSession(); setSession(null); setViewingReport(false); setAdminDiagnosticReport(null); };
+  if (restoringSession) return <main className="session-restore-screen"><span className="session-restore-spinner" /><strong>Kabinet tiklanmoqda...</strong></main>;
   if (!session) return <Login onEnter={setSession} />;
   if (session.role === "student") return <ReportApp onLogout={logout} liveReport={session.report} session={session} />;
-  if (adminExamResult) return <ReportApp onLogout={() => setAdminExamResult(null)} liveReport={null} session={session} exitLabel="Admin kabinetiga qaytish" forcedMiniExamResult={adminExamResult} resultOnly />;
+  if (adminDiagnosticReport) return <ReportApp onLogout={() => setAdminDiagnosticReport(null)} liveReport={adminDiagnosticReport} session={session} exitLabel="Admin kabinetiga qaytish" resultOnly />;
   if (viewingReport) return <ReportApp onLogout={() => setViewingReport(false)} liveReport={session.report} session={session} exitLabel="Kabinetga qaytish" />;
   if (session.role === "parent") return <ParentWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} />;
   if (session.role === "teacher") return <TeacherWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} />;
-  return <AdminWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} onOpenExamResult={setAdminExamResult} />;
+  return <AdminWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} onOpenExamResult={setAdminDiagnosticReport} />;
 }

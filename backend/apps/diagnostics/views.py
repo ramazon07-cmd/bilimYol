@@ -18,6 +18,8 @@ User = get_user_model()
 
 
 def student_ids_for(user):
+    if user.is_superuser or user.role == User.Role.ADMIN:
+        return User.objects.filter(role=User.Role.STUDENT).values_list("id", flat=True)
     if user.role == User.Role.TEACHER:
         return User.objects.filter(classrooms__teacher=user, role=User.Role.STUDENT).values_list("id", flat=True)
     if user.role == User.Role.PARENT:
@@ -25,14 +27,24 @@ def student_ids_for(user):
     return User.objects.filter(id=user.id).values_list("id", flat=True)
 
 
+def can_operate_exam(user, assignment: ExamAssignment) -> bool:
+    if user == assignment.student:
+        return True
+    if user.is_superuser or user.role == User.Role.ADMIN:
+        return assignment.delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED
+    return False
+
+
 class AssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ["exam", "classroom", "student", "is_active"]
+    filterset_fields = ["exam", "classroom", "student", "is_active", "delivery_mode"]
 
     def get_queryset(self):
         user = self.request.user
-        queryset = ExamAssignment.objects.select_related("exam", "student", "classroom", "assigned_by").prefetch_related("attempts")
+        queryset = ExamAssignment.objects.select_related(
+            "exam", "student", "classroom", "assigned_by", "administered_by",
+        ).prefetch_related("attempts")
         if user.is_superuser or user.role == User.Role.ADMIN:
             return queryset
         if user.role == User.Role.STUDENT:
@@ -42,17 +54,28 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.role not in {User.Role.ADMIN, User.Role.TEACHER} and not self.request.user.is_superuser:
             raise PermissionDenied("Faqat administrator yoki o‘qituvchi imtihon biriktira oladi.")
-        serializer.save(assigned_by=self.request.user)
+        delivery_mode = serializer.validated_data.get("delivery_mode", ExamAssignment.DeliveryMode.SELF)
+        serializer.save(
+            assigned_by=self.request.user,
+            administered_by=self.request.user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None,
+        )
 
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, pk=None):
         assignment = self.get_object()
-        if request.user != assignment.student:
-            raise PermissionDenied("Imtihonni faqat biriktirilgan o‘quvchi boshlashi mumkin.")
+        if not can_operate_exam(request.user, assignment):
+            raise PermissionDenied("Bu imtihonni boshlash huquqiga ega emassiz.")
         if not assignment.is_active:
             raise ValidationError("Bu imtihon faol emas.")
-        attempt = start_attempt(assignment)
-        return response.Response(AttemptSerializer(attempt, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        if assignment.available_from and timezone.now() < assignment.available_from:
+            raise ValidationError("Bu imtihon hali boshlanmagan.")
+        if assignment.due_at and timezone.now() > assignment.due_at:
+            raise ValidationError("Bu imtihon muddati tugagan.")
+        attempt = start_attempt(assignment, started_by=request.user)
+        return response.Response(
+            AttemptSerializer(attempt, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
@@ -62,7 +85,9 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = ExamAttempt.objects.select_related("assignment__student", "assignment__exam").prefetch_related("answers__selected_option", "answers__exam_question__question")
+        queryset = ExamAttempt.objects.select_related(
+            "assignment__student", "assignment__exam", "started_by", "submitted_by",
+        ).prefetch_related("answers__selected_option", "answers__exam_question__question")
         if user.is_superuser or user.role == User.Role.ADMIN:
             return queryset
         if user.role == User.Role.STUDENT:
@@ -72,8 +97,8 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
     @decorators.action(detail=True, methods=["post"])
     def answer(self, request, pk=None):
         attempt = self.get_object()
-        if request.user != attempt.assignment.student:
-            raise PermissionDenied("Javobni faqat o‘quvchi saqlashi mumkin.")
+        if not can_operate_exam(request.user, attempt.assignment):
+            raise PermissionDenied("Bu urinish uchun javob saqlash huquqiga ega emassiz.")
         if attempt.status != ExamAttempt.Status.IN_PROGRESS or timezone.now() >= attempt.expires_at:
             raise ValidationError("Urinish faol emas yoki vaqt tugagan.")
         exam_question_id = request.data.get("exam_question")
@@ -84,19 +109,20 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
             option = exam_question.question.options.get(id=selected_option_id)
         except (ExamQuestion.DoesNotExist, QuestionOption.DoesNotExist, ValueError, TypeError) as exc:
             raise ValidationError("Savol yoki javob varianti noto‘g‘ri.") from exc
-        answer, _ = StudentAnswer.objects.update_or_create(
+        StudentAnswer.objects.update_or_create(
             attempt=attempt,
             exam_question=exam_question,
             defaults={"selected_option": option, "is_flagged": is_flagged},
         )
+        attempt.refresh_from_db()
         return response.Response(AttemptSerializer(attempt, context={"request": request}).data)
 
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
         attempt = self.get_object()
-        if request.user != attempt.assignment.student:
-            raise PermissionDenied("Urinishni faqat o‘quvchi yakunlay oladi.")
-        report = submit_attempt(attempt)
+        if not can_operate_exam(request.user, attempt.assignment):
+            raise PermissionDenied("Bu urinishni yakunlash huquqiga ega emassiz.")
+        report = submit_attempt(attempt, submitted_by=request.user)
         return response.Response(DiagnosticReportSerializer(report, context={"request": request}).data)
 
 
@@ -107,7 +133,12 @@ class DiagnosticReportViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = DiagnosticReport.objects.select_related("attempt__assignment__student", "attempt__assignment__exam").prefetch_related("subject_results__subject", "topic_results__topic__subject", "skill_results__skill__subject", "roadmap__stages__weekly_tasks")
+        queryset = DiagnosticReport.objects.select_related(
+            "attempt__assignment__student", "attempt__assignment__exam",
+        ).prefetch_related(
+            "subject_results__subject", "topic_results__topic__subject",
+            "skill_results__skill__subject", "roadmap__stages__weekly_tasks",
+        )
         if user.is_superuser or user.role == User.Role.ADMIN:
             return queryset
         return queryset.filter(attempt__assignment__student_id__in=student_ids_for(user)).distinct()
@@ -120,7 +151,9 @@ class RoadmapViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Roadmap.objects.select_related("student", "teacher", "report").prefetch_related("stages__subject", "stages__focus_topic", "stages__weekly_tasks")
+        queryset = Roadmap.objects.select_related(
+            "student", "teacher", "report", "primary_goal",
+        ).prefetch_related("stages__subject", "stages__focus_topic", "stages__weekly_tasks")
         if user.is_superuser or user.role == User.Role.ADMIN:
             return queryset
         return queryset.filter(student_id__in=student_ids_for(user)).distinct()
@@ -134,9 +167,14 @@ class RoadmapViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         roadmap = self.get_object()
         roadmap.status = Roadmap.Status.APPROVED
-        roadmap.teacher = request.user if request.user.role == User.Role.TEACHER else roadmap.teacher
+        if request.user.role == User.Role.TEACHER:
+            roadmap.teacher = request.user
         roadmap.approved_at = timezone.now()
         roadmap.save(update_fields=["status", "teacher", "approved_at", "updated_at"])
+        profile = getattr(roadmap.student, "student_profile", None)
+        if profile:
+            profile.status = profile.Status.ACTIVE
+            profile.save(update_fields=["status", "updated_at"])
         return response.Response(self.get_serializer(roadmap).data)
 
 
@@ -147,13 +185,13 @@ class DashboardView(APIView):
         user = request.user
         reports = DiagnosticReport.objects.all()
         assignments = ExamAssignment.objects.all()
+        ids = student_ids_for(user)
         if not (user.is_superuser or user.role == User.Role.ADMIN):
-            ids = student_ids_for(user)
             reports = reports.filter(attempt__assignment__student_id__in=ids)
             assignments = assignments.filter(student_id__in=ids)
         return response.Response({
             "role": user.role,
-            "students": User.objects.filter(id__in=student_ids_for(user), role=User.Role.STUDENT).count(),
+            "students": User.objects.filter(id__in=ids, role=User.Role.STUDENT).count(),
             "active_assignments": assignments.filter(is_active=True).count(),
             "completed_attempts": reports.count(),
             "average_score": round(reports.aggregate(value=Avg("overall_score"))["value"] or 0, 2),

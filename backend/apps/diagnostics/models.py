@@ -6,17 +6,51 @@ from apps.academics.models import Exam, ExamQuestion, QuestionOption, Skill, Sub
 
 
 class ExamAssignment(models.Model):
+    class DeliveryMode(models.TextChoices):
+        SELF = "self", "O‘quvchi mustaqil"
+        ADMINISTERED = "administered", "Admin bilan"
+
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name="assignments")
-    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name="exam_assignments", null=True, blank=True)
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="exam_assignments", limit_choices_to={"role": "student"})
+    classroom = models.ForeignKey(
+        Classroom,
+        on_delete=models.SET_NULL,
+        related_name="exam_assignments",
+        null=True,
+        blank=True,
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="exam_assignments",
+        limit_choices_to={"role": "student"},
+    )
     available_from = models.DateTimeField(null=True, blank=True)
     due_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
-    assigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="assigned_exams")
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="assigned_exams",
+    )
+    delivery_mode = models.CharField(
+        max_length=20,
+        choices=DeliveryMode.choices,
+        default=DeliveryMode.SELF,
+    )
+    administered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="administered_exam_assignments",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["exam", "student"], name="unique_exam_student_assignment")]
+        constraints = [
+            models.UniqueConstraint(fields=["exam", "student"], name="unique_exam_student_assignment")
+        ]
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
@@ -34,6 +68,20 @@ class ExamAttempt(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField()
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="started_exam_attempts",
+    )
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="submitted_exam_attempts",
+    )
     earned_points = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     overall_score = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     is_ready = models.BooleanField(default=False)
@@ -55,7 +103,9 @@ class StudentAnswer(models.Model):
     answered_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["attempt", "exam_question"], name="unique_attempt_question_answer")]
+        constraints = [
+            models.UniqueConstraint(fields=["attempt", "exam_question"], name="unique_attempt_question_answer")
+        ]
 
 
 class DiagnosticReport(models.Model):
@@ -89,7 +139,9 @@ class SubjectResult(models.Model):
     potential = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["report", "subject"], name="unique_report_subject_result")]
+        constraints = [
+            models.UniqueConstraint(fields=["report", "subject"], name="unique_report_subject_result")
+        ]
 
 
 class TopicResult(models.Model):
@@ -102,7 +154,9 @@ class TopicResult(models.Model):
     confidence = models.CharField(max_length=20, default="low")
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["report", "topic"], name="unique_report_topic_result")]
+        constraints = [
+            models.UniqueConstraint(fields=["report", "topic"], name="unique_report_topic_result")
+        ]
 
 
 class SkillResult(models.Model):
@@ -115,7 +169,9 @@ class SkillResult(models.Model):
     confidence = models.CharField(max_length=20, default="low")
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["report", "skill"], name="unique_report_skill_result")]
+        constraints = [
+            models.UniqueConstraint(fields=["report", "skill"], name="unique_report_skill_result")
+        ]
 
 
 class Roadmap(models.Model):
@@ -126,8 +182,29 @@ class Roadmap(models.Model):
         COMPLETED = "completed", "Yakunlangan"
 
     report = models.OneToOneField(DiagnosticReport, on_delete=models.CASCADE, related_name="roadmap")
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roadmaps", limit_choices_to={"role": "student"})
-    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_roadmaps", limit_choices_to={"role": "teacher"})
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roadmaps",
+        limit_choices_to={"role": "student"},
+    )
+    teacher = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_roadmaps",
+        limit_choices_to={"role": "teacher"},
+    )
+    primary_goal = models.ForeignKey(
+        "profiling.StudentGoal",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="roadmaps",
+    )
+    generation_context = models.JSONField(default=dict, blank=True)
+    admin_note = models.TextField(blank=True)
     target_score = models.PositiveSmallIntegerField(default=85)
     weekly_hours = models.PositiveSmallIntegerField(default=5)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
@@ -151,7 +228,9 @@ class RoadmapStage(models.Model):
 
     class Meta:
         ordering = ["order"]
-        constraints = [models.UniqueConstraint(fields=["roadmap", "order"], name="unique_roadmap_stage_order")]
+        constraints = [
+            models.UniqueConstraint(fields=["roadmap", "order"], name="unique_roadmap_stage_order")
+        ]
 
 
 class WeeklyTask(models.Model):

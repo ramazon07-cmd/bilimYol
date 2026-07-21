@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import decorators, response, status, viewsets
@@ -8,6 +9,9 @@ from apps.diagnostics.models import ExamAssignment
 
 from .models import Exam, Question, Skill, Subject, Topic
 from .serializers import ExamSerializer, QuestionSerializer, SkillSerializer, SubjectSerializer, TopicSerializer
+
+
+User = get_user_model()
 
 
 class SubjectViewSet(viewsets.ModelViewSet):
@@ -41,7 +45,7 @@ class SkillViewSet(viewsets.ModelViewSet):
 class QuestionViewSet(viewsets.ModelViewSet):
     serializer_class = QuestionSerializer
     permission_classes = [ReadOnlyOrAdmin]
-    filterset_fields = ["subject", "topic", "difficulty", "is_active"]
+    filterset_fields = ["subject", "topic", "difficulty", "min_grade", "max_grade", "is_active"]
     search_fields = ["code", "prompt", "topic__title", "skills__title"]
     ordering_fields = ["code", "created_at", "difficulty"]
 
@@ -55,12 +59,12 @@ class QuestionViewSet(viewsets.ModelViewSet):
 class ExamViewSet(viewsets.ModelViewSet):
     serializer_class = ExamSerializer
     permission_classes = [ReadOnlyOrAdmin]
-    filterset_fields = ["status", "grade", "target_classrooms"]
+    filterset_fields = ["status", "grade", "purpose", "target_classrooms", "recommended_categories"]
     search_fields = ["title", "description"]
     ordering_fields = ["starts_at", "created_at"]
 
     def get_queryset(self):
-        queryset = Exam.objects.select_related("created_by").prefetch_related("target_classrooms", "subject_weights__subject", "exam_questions__question__options", "exam_questions__question__skills")
+        queryset = Exam.objects.select_related("created_by").prefetch_related("target_classrooms", "recommended_categories", "subject_weights__subject", "exam_questions__question__options", "exam_questions__question__skills")
         if self.request.user.role == "student":
             return queryset.exclude(status=Exam.Status.DRAFT)
         return queryset
@@ -126,16 +130,51 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         student_id = request.data.get("student")
         classroom_id = request.data.get("classroom")
+        delivery_mode = request.data.get("delivery_mode", ExamAssignment.DeliveryMode.ADMINISTERED)
+
         try:
-            classroom = Classroom.objects.get(id=classroom_id)
-            student = classroom.students.get(id=student_id, role="student")
-        except (Classroom.DoesNotExist, ValueError, TypeError):
-            return response.Response({"detail": "Sinf topilmadi."}, status=status.HTTP_404_NOT_FOUND)
-        except Exception:
-            return response.Response({"detail": "O‘quvchi bu sinfga biriktirilmagan."}, status=status.HTTP_400_BAD_REQUEST)
+            student = User.objects.get(id=student_id, role=User.Role.STUDENT)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return response.Response({"detail": "O‘quvchi topilmadi."}, status=status.HTTP_404_NOT_FOUND)
+
+        classroom = None
+        if classroom_id:
+            try:
+                classroom = Classroom.objects.get(id=classroom_id)
+            except (Classroom.DoesNotExist, ValueError, TypeError):
+                return response.Response({"detail": "Sinf topilmadi."}, status=status.HTTP_404_NOT_FOUND)
+            if not classroom.students.filter(id=student.id).exists():
+                return response.Response({"detail": "O‘quvchi bu sinfga biriktirilmagan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        profile = getattr(student, "student_profile", None)
+        profile_grade = profile.grade if profile else None
+        if exam.grade is not None and profile_grade is not None and exam.grade != profile_grade:
+            return response.Response(
+                {"detail": f"Test {exam.grade}-sinf uchun, o‘quvchi esa {profile_grade}-sinfda."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if delivery_mode not in ExamAssignment.DeliveryMode.values:
+            return response.Response({"detail": "Test topshirish rejimi noto‘g‘ri."}, status=status.HTTP_400_BAD_REQUEST)
+
         assignment, created = ExamAssignment.objects.update_or_create(
             exam=exam,
             student=student,
-            defaults={"classroom": classroom, "is_active": True, "assigned_by": request.user},
+            defaults={
+                "classroom": classroom,
+                "is_active": True,
+                "assigned_by": request.user,
+                "delivery_mode": delivery_mode,
+                "administered_by": request.user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None,
+            },
         )
-        return response.Response({"assignment": assignment.id, "created": created, "student": student.full_name})
+        if profile:
+            profile.status = profile.Status.TEST_ASSIGNED
+            profile.save(update_fields=["status", "updated_at"])
+        return response.Response({
+            "assignment": assignment.id,
+            "created": created,
+            "student": student.full_name,
+            "delivery_mode": assignment.delivery_mode,
+        })
+

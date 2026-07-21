@@ -5,183 +5,425 @@ import {
   ClipboardList,
   Clock3,
   GraduationCap,
+  LoaderCircle,
+  Play,
   RotateCcw,
   Save,
   UserRound,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  MINI_EXAM_STORAGE_KEY,
-  MINI_EXAM_STUDENT_RESULTS_KEY,
-  calculateMiniExamSubjectScores,
-  miniExamQuestions,
-  normalizeCandidate,
-  type MiniExamResult,
-} from "../lib/mini-exam";
 
-export function AdminTestsPanel({ onComplete }: { onComplete: (result: MiniExamResult) => void }) {
-  const [candidate, setCandidate] = useState("");
-  const [grade, setGrade] = useState("8-sinf");
-  const [started, setStarted] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+import { apiRequest, hasLiveApi, type LiveDiagnosticReport, type PaginatedResponse } from "../lib/api";
+import {
+  getStudentProfiles,
+  recommendStudentTests,
+  type Exam,
+  type StudentProfile,
+} from "../lib/profiling-api";
+
+type Props = {
+  selectedProfileId?: number | null;
+  onComplete: (report: LiveDiagnosticReport) => void;
+};
+
+type AssignmentResponse = {
+  assignment: number;
+  created: boolean;
+  student: string;
+  delivery_mode: string;
+};
+
+type AttemptResponse = {
+  id: number;
+  remaining_seconds: number;
+};
+
+const statusLabel: Record<string, string> = {
+  interview_completed: "Suhbat yakunlangan",
+  test_recommended: "Test tavsiya qilingan",
+  test_assigned: "Test biriktirilgan",
+  diagnosed: "Diagnostika yakunlangan",
+  roadmap_draft: "Roadmap draft",
+  active: "Faol",
+};
+
+export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = null, onComplete }: Props) {
+  const [profiles, setProfiles] = useState<StudentProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(initialSelectedProfileId);
+  const [recommendedExams, setRecommendedExams] = useState<Exam[]>([]);
+  const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
+  const [activeExam, setActiveExam] = useState<Exam | null>(null);
+  const [assignmentId, setAssignmentId] = useState<number | null>(null);
+  const [attemptId, setAttemptId] = useState<number | null>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [history, setHistory] = useState<LiveDiagnosticReport[]>([]);
+  const [historyError, setHistoryError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [savingQuestion, setSavingQuestion] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const [history, setHistory] = useState<MiniExamResult[]>([]);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    let savedHistory: MiniExamResult[] = [];
-    try {
-      const saved = window.localStorage.getItem(MINI_EXAM_STORAGE_KEY);
-      if (saved) savedHistory = JSON.parse(saved) as MiniExamResult[];
-    } catch {
-      savedHistory = [];
-    }
-    const timer = window.setTimeout(() => setHistory(savedHistory), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    if (!hasLiveApi()) return;
 
-  const answeredCount = Object.keys(answers).length;
-  const score = useMemo(
-    () => miniExamQuestions.reduce((total, question) => total + (answers[question.id] === question.correct ? 10 : 0), 0),
-    [answers],
+    getStudentProfiles("ordering=-created_at&page_size=100")
+      .then((profilePayload) => {
+        setProfiles(profilePayload.results);
+        if (!selectedProfileId && profilePayload.results.length > 0) {
+          const preferred = profilePayload.results.find((item) =>
+            ["interview_completed", "test_recommended", "test_assigned"].includes(item.status),
+          );
+          setSelectedProfileId(preferred?.id ?? profilePayload.results[0].id);
+        }
+      })
+      .catch((requestError: Error) => setError(requestError.message));
+
+    apiRequest<PaginatedResponse<LiveDiagnosticReport> | LiveDiagnosticReport[]>("/reports/?page_size=10")
+      .then((reportPayload) => {
+        setHistory(Array.isArray(reportPayload) ? reportPayload : reportPayload.results ?? []);
+        setHistoryError("");
+      })
+      .catch(() => {
+        setHistory([]);
+        setHistoryError("So‘nggi natijalarni hozir yuklab bo‘lmadi.");
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedProfile = useMemo(
+    () => profiles.find((item) => item.id === selectedProfileId) ?? null,
+    [profiles, selectedProfileId],
   );
+  const selectedExam = useMemo(
+    () => recommendedExams.find((item) => item.id === selectedExamId) ?? null,
+    [recommendedExams, selectedExamId],
+  );
+  const answeredCount = Object.keys(answers).length;
+  const totalQuestions = activeExam?.exam_questions.length ?? 0;
 
-  const startExam = () => {
-    if (!candidate.trim()) {
-      setError("Avval o‘quvchining ism-familiyasini kiriting.");
+  const resetFlow = () => {
+    setRecommendedExams([]);
+    setSelectedExamId(null);
+    setActiveExam(null);
+    setAssignmentId(null);
+    setAttemptId(null);
+    setAnswers({});
+    setError("");
+    setNotice("");
+  };
+
+  const loadRecommendations = async () => {
+    if (!selectedProfileId) {
+      setError("Avval o‘quvchini tanlang.");
       return;
     }
+    setLoading(true);
     setError("");
-    setStarted(true);
-    setSubmitted(false);
-    setAnswers({});
-    window.dispatchEvent(new Event("bilimyol-exam-start"));
+    setNotice("");
+    try {
+      const payload = await recommendStudentTests(selectedProfileId);
+      let tests = payload.tests;
+
+      if (tests.length === 0 && selectedProfile?.grade) {
+        const directPayload = await apiRequest<PaginatedResponse<Exam> | Exam[]>(
+          `/exams/?status=active&grade=${selectedProfile.grade}&page_size=100`,
+        );
+        tests = Array.isArray(directPayload) ? directPayload : directPayload.results ?? [];
+      }
+
+      if (tests.length === 0) {
+        const generalPayload = await apiRequest<PaginatedResponse<Exam> | Exam[]>(
+          "/exams/?status=active&page_size=100",
+        );
+        const allActive = Array.isArray(generalPayload) ? generalPayload : generalPayload.results ?? [];
+        tests = allActive.filter((exam) => exam.grade == null);
+      }
+
+      setRecommendedExams(tests);
+      setSelectedExamId(tests[0]?.id ?? null);
+      if (tests.length === 0) {
+        setError(`${selectedProfile?.grade ?? "Bu"}-sinf uchun faol diagnostik test hali yaratilmagan. Backendda sync_grade_tests buyrug‘ini ishga tushiring.`);
+      } else {
+        setNotice(`${tests.length} ta mos test topildi.`);
+      }
+    } catch (requestError) {
+      setNotice("");
+      setError(requestError instanceof Error ? requestError.message : "Test tavsiyalarini olishda xatolik.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const submitExam = () => {
-    if (answeredCount !== miniExamQuestions.length) {
-      setError(`Yana ${miniExamQuestions.length - answeredCount} ta savolga javob berilmagan.`);
+  const assignExam = async () => {
+    if (!selectedProfile || !selectedExam) {
+      setError("O‘quvchi va testni tanlang.");
       return;
     }
-
-    const now = new Date();
-    const result: MiniExamResult = {
-      id: `${now.getTime()}`,
-      candidate: candidate.trim(),
-      candidateKey: normalizeCandidate(candidate),
-      grade,
-      score,
-      passed: score >= 60,
-      createdAt: new Intl.DateTimeFormat("uz-UZ", { dateStyle: "medium", timeStyle: "short" }).format(now),
-      createdAtIso: now.toISOString(),
-      correctAnswers: Math.round(score / 10),
-      totalQuestions: miniExamQuestions.length,
-      subjectScores: calculateMiniExamSubjectScores(answers),
-      answers: { ...answers },
-    };
-    let autoSave = true;
-    try {
-      const savedSettings = window.localStorage.getItem("bilimyol_system_settings");
-      if (savedSettings) autoSave = Boolean((JSON.parse(savedSettings) as { autoSave?: boolean }).autoSave);
-    } catch {
-      autoSave = true;
-    }
-    let studentResults: MiniExamResult[] = [];
-    try {
-      const savedStudentResults = window.localStorage.getItem(MINI_EXAM_STUDENT_RESULTS_KEY);
-      if (savedStudentResults) studentResults = JSON.parse(savedStudentResults) as MiniExamResult[];
-    } catch {
-      studentResults = [];
-    }
-    const nextStudentResults = [
-      result,
-      ...studentResults.filter((item) => (item.candidateKey ?? normalizeCandidate(item.candidate)) !== result.candidateKey),
-    ].slice(0, 50);
-    window.localStorage.setItem(MINI_EXAM_STUDENT_RESULTS_KEY, JSON.stringify(nextStudentResults));
-
-    if (autoSave) {
-      const nextHistory = [result, ...history].slice(0, 8);
-      setHistory(nextHistory);
-      window.localStorage.setItem(MINI_EXAM_STORAGE_KEY, JSON.stringify(nextHistory));
-    }
-    window.dispatchEvent(new CustomEvent("bilimyol-mini-exam-result", { detail: result }));
-    setSubmitted(true);
+    setLoading(true);
     setError("");
-    onComplete(result);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    try {
+      const assignment = await apiRequest<AssignmentResponse>(`/exams/${selectedExam.id}/assign-student/`, {
+        method: "POST",
+        body: JSON.stringify({
+          student: selectedProfile.student.id,
+          classroom: null,
+          delivery_mode: "administered",
+        }),
+      });
+      setAssignmentId(assignment.assignment);
+      setActiveExam(selectedExam);
+      setError("");
+      setNotice(`${selectedProfile.student.full_name} uchun test biriktirildi.`);
+    } catch (requestError) {
+      setNotice("");
+      setError(requestError instanceof Error ? requestError.message : "Testni biriktirishda xatolik.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const resetExam = () => {
-    setStarted(false);
-    setSubmitted(false);
-    setAnswers({});
-    setCandidate("");
+  const startExam = async () => {
+    if (!assignmentId || !activeExam) return;
+    setLoading(true);
     setError("");
+    try {
+      const attempt = await apiRequest<AttemptResponse>(`/assignments/${assignmentId}/start/`, { method: "POST" });
+      setAttemptId(attempt.id);
+      setAnswers({});
+      setError("");
+      setNotice("Imtihon boshlandi. Har bir tanlov backendga darhol saqlanadi.");
+      window.dispatchEvent(new Event("bilimyol-exam-start"));
+    } catch (requestError) {
+      setNotice("");
+      setError(requestError instanceof Error ? requestError.message : "Testni boshlashda xatolik.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (submitted) {
+  const saveAnswer = async (examQuestionId: number, optionId: number) => {
+    if (!attemptId) return;
+    setAnswers((current) => ({ ...current, [examQuestionId]: optionId }));
+    setSavingQuestion(examQuestionId);
+    setError("");
+    try {
+      await apiRequest(`/attempts/${attemptId}/answer/`, {
+        method: "POST",
+        body: JSON.stringify({
+          exam_question: examQuestionId,
+          selected_option: optionId,
+          is_flagged: false,
+        }),
+      });
+    } catch (requestError) {
+      setAnswers((current) => {
+        const next = { ...current };
+        delete next[examQuestionId];
+        return next;
+      });
+      setError(requestError instanceof Error ? requestError.message : "Javob saqlanmadi.");
+    } finally {
+      setSavingQuestion(null);
+    }
+  };
+
+  const submitExam = async () => {
+    if (!attemptId || !activeExam) return;
+    if (answeredCount !== totalQuestions) {
+      setError(`Yana ${totalQuestions - answeredCount} ta savolga javob berilmagan.`);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const report = await apiRequest<LiveDiagnosticReport>(`/attempts/${attemptId}/submit/`, { method: "POST" });
+      setHistory((current) => [report, ...current.filter((item) => item.id !== report.id)].slice(0, 10));
+      onComplete(report);
+    } catch (requestError) {
+      setNotice("");
+      setError(requestError instanceof Error ? requestError.message : "Imtihonni yakunlashda xatolik.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!hasLiveApi()) {
     return (
-      <>
-        <div className="portal-page-title">
-          <div><span>Qabul mini-imtihoni</span><h1>Imtihon yakunlandi</h1><p>Natija avtomatik hisoblandi va ushbu qurilmada saqlandi.</p></div>
-          <button className="portal-primary" onClick={resetExam}><RotateCcw size={17} /> Yangi o‘quvchi</button>
-        </div>
-        <article className={`portal-card mini-exam-result ${score >= 60 ? "passed" : "failed"}`}>
-          <span>{score >= 60 ? <CheckCircle2 size={34} /> : <XCircle size={34} />}</span>
-          <div><small>{candidate} · {grade}</small><h2>{score}/100 ball</h2><p>{score >= 60 ? "O‘quvchi boshlang‘ich saralashdan o‘tdi." : "O‘quvchiga qo‘shimcha tayyorgarlik tavsiya qilinadi."}</p></div>
-        </article>
-        <div className="mini-exam-review">
-          {miniExamQuestions.map((question, index) => {
-            const isCorrect = answers[question.id] === question.correct;
-            return <article className="portal-card" key={question.id}><span className={isCorrect ? "correct" : "wrong"}>{isCorrect ? <CheckCircle2 size={17} /> : <XCircle size={17} />}</span><div><small>{index + 1}-savol · {question.subject}</small><strong>{question.text}</strong><p>Sizning javobingiz: {question.options[answers[question.id]]}</p>{!isCorrect && <em>To‘g‘ri javob: {question.options[question.correct]}</em>}</div></article>;
-          })}
-        </div>
-      </>
+      <article className="portal-card admin-exam-empty">
+        <ClipboardList size={28} />
+        <h2>Real diagnostika uchun API kerak</h2>
+        <p><code>NEXT_PUBLIC_API_BASE_URL</code> ni backend manziliga sozlang.</p>
+      </article>
     );
   }
 
   return (
-    <>
-      <div className="portal-page-title">
-        <div><span>Qabul mini-imtihoni</span><h1>O‘quvchini saytda tekshirish</h1><p>Admin kelgan o‘quvchiga shu yerning o‘zida 10 savollik qisqa matematika, ingliz tili va mantiq imtihonini o‘tkazadi.</p></div>
-        {started && <div className="mini-exam-progress"><strong>{answeredCount}/10</strong><span>javob berildi</span></div>}
+    <div className="admin-exam-page">
+      <div className="admin-exam-heading">
+        <div>
+          <span>Qabul diagnostikasi</span>
+          <h1>Admin bilan test o‘tkazish</h1>
+          <p>Profil → tavsiya → biriktirish → javoblar → hisobot → individual roadmap.</p>
+        </div>
+        {(assignmentId || attemptId) && (
+          <button className="portal-secondary" onClick={resetFlow}>
+            <RotateCcw size={16} /> Yangidan boshlash
+          </button>
+        )}
       </div>
 
-      {!started ? (
-        <div className="mini-exam-start-grid">
-          <article className="portal-card mini-exam-intro">
-            <span><ClipboardList size={26} /></span>
-            <div><small>Tayyor imtihon</small><h2>BilimYo‘l qabul testi</h2><p>10 ta savol · har biri 10 ball · o‘tish chegarasi 60 ball.</p></div>
-            <ul><li><Clock3 size={15} /> Taxminiy vaqt: 10–15 daqiqa</li><li><GraduationCap size={15} /> Natija darhol chiqadi</li><li><Save size={15} /> Oxirgi natijalar saqlanadi</li></ul>
+      {error && <div className="admin-flow-message error"><XCircle size={17} />{error}</div>}
+      {notice && <div className="admin-flow-message success"><CheckCircle2 size={17} />{notice}</div>}
+
+      {!attemptId && (
+        <div className="admin-exam-setup-grid">
+          <article className="portal-card admin-exam-setup">
+            <div className="admin-flow-step"><span>1</span><div><strong>O‘quvchini tanlang</strong><small>Suhbat va kategoriya profili tayyor bo‘lishi kerak.</small></div></div>
+            <label className="admin-field">
+              <span>O‘quvchi profili</span>
+              <select
+                value={selectedProfileId ?? ""}
+                onChange={(event) => {
+                  setSelectedProfileId(Number(event.target.value) || null);
+                  resetFlow();
+                }}
+              >
+                <option value="">Tanlang</option>
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.student.full_name} · {profile.grade ?? "?"}-sinf · {statusLabel[profile.status] ?? profile.status}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {selectedProfile && (
+              <div className="selected-student-card">
+                <span><UserRound size={20} /></span>
+                <div>
+                  <strong>{selectedProfile.student.full_name}</strong>
+                  <small>{selectedProfile.admission_code} · {selectedProfile.school_name || "Maktab kiritilmagan"}</small>
+                </div>
+                <em>{selectedProfile.grade ?? "—"}-sinf</em>
+              </div>
+            )}
+
+            <button className="portal-primary" onClick={loadRecommendations} disabled={loading || !selectedProfileId}>
+              {loading ? <LoaderCircle className="spin" size={17} /> : <GraduationCap size={17} />}
+              Mos testlarni topish
+            </button>
           </article>
-          <article className="portal-card mini-exam-candidate">
-            <div><span>O‘quvchi ma’lumoti</span><h2>Imtihonni boshlash</h2></div>
-            <label>Ism-familiya<input value={candidate} onChange={(event) => setCandidate(event.target.value)} placeholder="Masalan: Bobur Xasanboyev" /></label>
-            <label>Sinf<select value={grade} onChange={(event) => setGrade(event.target.value)}><option>5-sinf</option><option>6-sinf</option><option>7-sinf</option><option>8-sinf</option><option>9-sinf</option><option>10-sinf</option></select></label>
-            {error && <p className="mini-exam-error">{error}</p>}
-            <button className="administer-button" onClick={startExam}><UserRound size={18} /> Imtihonni boshlash</button>
+
+          <article className="portal-card admin-exam-setup">
+            <div className="admin-flow-step"><span>2</span><div><strong>Testni tanlang</strong><small>Grade va kategoriyalar bo‘yicha backend tavsiyasi.</small></div></div>
+            {recommendedExams.length === 0 ? (
+              <div className="admin-exam-placeholder"><ClipboardList size={25} /><p>Avval o‘quvchi uchun tavsiyalarni oling.</p></div>
+            ) : (
+              <>
+                <div className="recommended-exam-list">
+                  {recommendedExams.map((exam) => (
+                    <button
+                      key={exam.id}
+                      className={selectedExamId === exam.id ? "active" : ""}
+                      onClick={() => setSelectedExamId(exam.id)}
+                    >
+                      <span><ClipboardList size={18} /></span>
+                      <div><strong>{exam.title}</strong><small>{exam.grade ? `${exam.grade}-sinf` : "Barcha sinflar"} · {exam.duration_minutes} daqiqa</small></div>
+                      <em>{exam.exam_questions.length} savol</em>
+                    </button>
+                  ))}
+                </div>
+                {!assignmentId ? (
+                  <button className="portal-primary" onClick={assignExam} disabled={loading || !selectedExamId}>
+                    {loading ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}
+                    Testni biriktirish
+                  </button>
+                ) : (
+                  <button className="portal-primary" onClick={startExam} disabled={loading}>
+                    {loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
+                    Testni boshlash
+                  </button>
+                )}
+              </>
+            )}
           </article>
         </div>
-      ) : (
-        <>
-          <article className="portal-card mini-exam-candidate-bar"><div><UserRound size={19} /><span><small>O‘quvchi</small><strong>{candidate}</strong></span></div><div><small>Sinf</small><strong>{grade}</strong></div><div><small>O‘tish bali</small><strong>60/100</strong></div><button onClick={resetExam}>Bekor qilish</button></article>
-          <div className="mini-exam-questions">
-            {miniExamQuestions.map((question, index) => (
-              <article className="portal-card mini-question-card" key={question.id}>
-                <div className="mini-question-head"><span>{index + 1}</span><div><small>{question.subject}</small><h3>{question.text}</h3></div></div>
-                <div className="mini-question-options">
-                  {question.options.map((option, optionIndex) => <button key={option} className={answers[question.id] === optionIndex ? "selected" : ""} onClick={() => { setAnswers((current) => ({ ...current, [question.id]: optionIndex })); setError(""); }}><i>{String.fromCharCode(65 + optionIndex)}</i><span>{option}</span>{answers[question.id] === optionIndex && <CheckCircle2 size={17} />}</button>)}
-                </div>
-              </article>
-            ))}
-          </div>
-          {error && <p className="mini-exam-error sticky-error">{error}</p>}
-          <div className="mini-exam-submit"><div><strong>{answeredCount}/10 savol</strong><span>Javoblarning barchasini tekshirib, imtihonni yakunlang.</span></div><button className="portal-primary" onClick={submitExam}><CheckCircle2 size={17} /> Natijani hisoblash</button></div>
-        </>
       )}
 
-      {!started && history.length > 0 && <article className="portal-card mini-exam-history"><div className="portal-card-head"><div><span>Saqlangan natijalar</span><h2>Oxirgi mini-imtihonlar</h2></div></div><div>{history.map((result) => <article key={result.id}><span>{result.candidate.split(" ").map((part) => part[0]).slice(0, 2).join("")}</span><div><strong>{result.candidate}</strong><small>{result.grade} · {result.createdAt}</small></div><b>{result.score}/100</b><em className={result.passed ? "passed" : "failed"}>{result.passed ? "O‘tdi" : "O‘tmadi"}</em></article>)}</div></article>}
-    </>
+      {attemptId && activeExam && (
+        <section className="admin-live-exam">
+          <div className="admin-live-exam-head portal-card">
+            <div><span>Test jarayoni</span><h2>{activeExam.title}</h2><p>{selectedProfile?.student.full_name}</p></div>
+            <div className="exam-progress-box">
+              <Clock3 size={18} />
+              <strong>{answeredCount}/{totalQuestions}</strong>
+              <small>javob saqlandi</small>
+            </div>
+          </div>
+
+          <div className="admin-question-stack">
+            {activeExam.exam_questions.map((examQuestion, index) => {
+              const question = examQuestion.question_detail;
+              return (
+                <article className="portal-card mini-question-card" key={examQuestion.id}>
+                  <div className="mini-question-head">
+                    <span>{index + 1}</span>
+                    <div><small>{question.subject_title}</small><h3>{question.prompt}</h3></div>
+                    {savingQuestion === examQuestion.id && <LoaderCircle className="spin" size={18} />}
+                  </div>
+                  <div className="mini-question-options">
+                    {question.options.map((option) => (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className={answers[examQuestion.id] === option.id ? "selected" : ""}
+                        onClick={() => saveAnswer(examQuestion.id, option.id)}
+                        disabled={savingQuestion === examQuestion.id}
+                      >
+                        <i>{option.label}</i><span>{option.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="admin-submit-bar portal-card">
+            <div><strong>{answeredCount}/{totalQuestions} savol</strong><p>Barcha javoblar backendda saqlanadi.</p></div>
+            <button className="portal-primary" onClick={submitExam} disabled={loading || answeredCount !== totalQuestions}>
+              {loading ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}
+              Imtihonni yakunlash
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!attemptId && historyError && history.length === 0 && (
+        <div className="admin-history-note">{historyError} Test biriktirish va topshirish jarayoni ishlashda davom etadi.</div>
+      )}
+
+      {!attemptId && history.length > 0 && (
+        <article className="portal-card admin-exam-history">
+          <div className="portal-card-head"><div><span>So‘nggi natijalar</span><h2>Backendda saqlangan diagnostikalar</h2></div></div>
+          <div className="portal-table-wrap">
+            <table className="portal-table">
+              <thead><tr><th>O‘quvchi</th><th>Test</th><th>Natija</th><th>Tayyorlik</th><th>Roadmap</th></tr></thead>
+              <tbody>
+                {history.map((item) => (
+                  <tr key={item.id}>
+                    <td><strong>{item.student.full_name}</strong></td>
+                    <td>{item.exam?.title ?? "Diagnostika"}</td>
+                    <td><strong>{Math.round(Number(item.overall_score))}/100</strong></td>
+                    <td><em className={`table-status ${item.readiness === "ready" ? "ready" : "risk"}`}>{item.readiness === "ready" ? "Tayyor" : "Tayyor emas"}</em></td>
+                    <td>{item.roadmap ? <span className="role-label">{item.roadmap.status}</span> : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      )}
+    </div>
   );
 }

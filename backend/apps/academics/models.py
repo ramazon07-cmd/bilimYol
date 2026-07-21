@@ -62,6 +62,8 @@ class Question(models.Model):
     prompt = models.TextField()
     explanation = models.TextField(blank=True)
     difficulty = models.CharField(max_length=12, choices=Difficulty.choices, default=Difficulty.MEDIUM)
+    min_grade = models.PositiveSmallIntegerField(null=True, blank=True)
+    max_grade = models.PositiveSmallIntegerField(null=True, blank=True)
     default_points = models.DecimalField(max_digits=6, decimal_places=2, default=1)
     image_url = models.URLField(blank=True)
     is_active = models.BooleanField(default=True)
@@ -99,8 +101,17 @@ class Exam(models.Model):
         COMPLETED = "completed", "Yakunlangan"
         ARCHIVED = "archived", "Arxivlangan"
 
+    class Purpose(models.TextChoices):
+        ADMISSION = "admission", "Qabul diagnostikasi"
+        PRESIDENTIAL_SCHOOL = "presidential_school", "Prezident maktabi"
+        IELTS = "ielts", "IELTS"
+        SAT = "sat", "SAT"
+        OLYMPIAD = "olympiad", "Olimpiada"
+        GENERAL = "general", "Umumiy diagnostika"
+
     title = models.CharField(max_length=180)
-    grade = models.PositiveSmallIntegerField(default=8)
+    grade = models.PositiveSmallIntegerField(null=True, blank=True)
+    purpose = models.CharField(max_length=40, choices=Purpose.choices, default=Purpose.GENERAL, db_index=True)
     description = models.TextField(blank=True)
     duration_minutes = models.PositiveSmallIntegerField(default=90)
     max_score = models.DecimalField(max_digits=7, decimal_places=2, default=100)
@@ -110,6 +121,11 @@ class Exam(models.Model):
     ends_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT, db_index=True)
     subjects = models.ManyToManyField(Subject, through="ExamSubjectWeight", related_name="exams")
+    recommended_categories = models.ManyToManyField(
+        "profiling.Category",
+        related_name="recommended_exams",
+        blank=True,
+    )
     target_classrooms = models.ManyToManyField(
         "accounts.Classroom",
         related_name="available_exams",
