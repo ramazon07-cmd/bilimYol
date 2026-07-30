@@ -76,9 +76,11 @@ class CertificateViewSet(viewsets.ModelViewSet):
 
     @decorators.action(detail=True, methods=["post"])
     def verify(self, request, pk=None):
-        if not (request.user.is_superuser or request.user.role == User.Role.ADMIN):
-            raise PermissionDenied("Sertifikatni faqat administrator tasdiqlaydi.")
+        if request.user.role not in {User.Role.ADMIN, User.Role.TEACHER} and not request.user.is_superuser:
+            raise PermissionDenied("Sertifikatni faqat administrator yoki o‘qituvchi tasdiqlaydi.")
         certificate = self.get_object()
+        if not can_access_student(request.user, certificate.student_id):
+            raise PermissionDenied("Bu o‘quvchi sertifikatini tasdiqlay olmaysiz.")
         certificate.is_verified = True
         certificate.verified_by = request.user
         certificate.save(update_fields=["is_verified", "verified_by"])

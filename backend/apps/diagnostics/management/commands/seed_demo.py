@@ -1,7 +1,8 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.accounts.models import Classroom, ClassroomStudent, ParentStudent
@@ -19,6 +20,8 @@ class Command(BaseCommand):
     help = "BilimYo‘l uchun to‘liq demo dataset yaratadi"
 
     def handle(self, *args, **options):
+        if not settings.DEBUG:
+            raise CommandError("seed_demo productionda bloklangan. Demo hisoblarni production bazaga yaratmang.")
         admin = self.user("admin", "Admin BilimYo‘l", User.Role.ADMIN, "admin12345", is_staff=True, is_superuser=True)
         teacher = self.user("teacher", "Dilnoza Usmonova", User.Role.TEACHER, "teacher123")
         student = self.user("student", "Bobur Xasanboyev", User.Role.STUDENT, "student123")
@@ -193,16 +196,15 @@ class Command(BaseCommand):
                 question.skills.set([skills[slug][index % len(skills[slug])]])
                 for option_index, text in enumerate(options_text):
                     label = chr(65 + option_index)
-
-                QuestionOption.objects.update_or_create(
-                    question=question,
-                    label=label,
-                    defaults={
-                        "text": text,
-                        "is_correct": option_index == 0,
-                        "order": option_index,
-                    },
-                )
+                    QuestionOption.objects.update_or_create(
+                        question=question,
+                        label=label,
+                        defaults={
+                            "text": text,
+                            "is_correct": option_index == 0,
+                            "order": option_index,
+                        },
+                    )
                 questions.append(question)
 
         exam, _ = Exam.objects.update_or_create(

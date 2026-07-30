@@ -35,6 +35,15 @@ def can_operate_exam(user, assignment: ExamAssignment) -> bool:
     return False
 
 
+def teacher_can_manage_assignment(user, student, classroom=None) -> bool:
+    if user.role != User.Role.TEACHER:
+        return False
+    classrooms = student.classrooms.filter(teacher=user)
+    if classroom is not None:
+        classrooms = classrooms.filter(id=classroom.id)
+    return classrooms.exists()
+
+
 class AssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSerializer
     permission_classes = [IsAuthenticated]
@@ -52,13 +61,35 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         return queryset.filter(student_id__in=student_ids_for(user)).distinct()
 
     def perform_create(self, serializer):
-        if self.request.user.role not in {User.Role.ADMIN, User.Role.TEACHER} and not self.request.user.is_superuser:
+        user = self.request.user
+        if user.role not in {User.Role.ADMIN, User.Role.TEACHER} and not user.is_superuser:
             raise PermissionDenied("Faqat administrator yoki o‘qituvchi imtihon biriktira oladi.")
+        student = serializer.validated_data["student"]
+        classroom = serializer.validated_data.get("classroom")
+        if user.role == User.Role.TEACHER and not teacher_can_manage_assignment(user, student, classroom):
+            raise PermissionDenied("O‘qituvchi faqat o‘z sinfidagi o‘quvchiga imtihon biriktira oladi.")
         delivery_mode = serializer.validated_data.get("delivery_mode", ExamAssignment.DeliveryMode.SELF)
         serializer.save(
-            assigned_by=self.request.user,
-            administered_by=self.request.user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None,
+            assigned_by=user,
+            administered_by=user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None,
         )
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        assignment = serializer.instance
+        student = serializer.validated_data.get("student", assignment.student)
+        classroom = serializer.validated_data.get("classroom", assignment.classroom)
+        if not (user.is_superuser or user.role == User.Role.ADMIN):
+            if not teacher_can_manage_assignment(user, student, classroom):
+                raise PermissionDenied("Bu biriktirmani o‘zgartirish huquqiga ega emassiz.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if not (user.is_superuser or user.role == User.Role.ADMIN):
+            if not teacher_can_manage_assignment(user, instance.student, instance.classroom):
+                raise PermissionDenied("Bu biriktirmani o‘chirish huquqiga ega emassiz.")
+        instance.delete()
 
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, pk=None):

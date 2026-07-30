@@ -60,3 +60,12 @@ class ParentStudentSerializer(serializers.ModelSerializer):
         model = ParentStudent
         fields = ["id", "parent", "parent_detail", "student", "student_detail", "relationship", "created_at"]
         read_only_fields = ["created_at"]
+
+    def validate(self, attrs):
+        parent = attrs.get("parent", getattr(self.instance, "parent", None))
+        student = attrs.get("student", getattr(self.instance, "student", None))
+        if parent and parent.role != User.Role.PARENT:
+            raise serializers.ValidationError({"parent": "Ota-ona rolidagi foydalanuvchini tanlang."})
+        if student and student.role != User.Role.STUDENT:
+            raise serializers.ValidationError({"student": "O‘quvchi rolidagi foydalanuvchini tanlang."})
+        return attrs

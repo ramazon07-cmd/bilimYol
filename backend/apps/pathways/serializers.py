@@ -21,7 +21,12 @@ class CertificateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Certificate
         fields = ["id", "student", "student_detail", "kind", "title", "score", "issued_at", "expires_at", "file_url", "is_verified", "verified_by", "verified_by_name", "created_at"]
-        read_only_fields = ["verified_by", "created_at"]
+        read_only_fields = ["is_verified", "verified_by", "created_at"]
+
+    def validate(self, attrs):
+        if self.instance and "student" in attrs and attrs["student"].id != self.instance.student_id:
+            raise serializers.ValidationError({"student": "Sertifikat egasini o‘zgartirib bo‘lmaydi."})
+        return attrs
 
 
 class UniversityGoalSerializer(serializers.ModelSerializer):
@@ -34,6 +39,11 @@ class UniversityGoalSerializer(serializers.ModelSerializer):
         model = UniversityGoal
         fields = ["id", "student", "student_detail", "university", "university_detail", "target_year", "selected_by", "selected_by_name", "progress", "selected_at", "updated_at"]
         read_only_fields = ["selected_by", "selected_at", "updated_at"]
+
+    def validate(self, attrs):
+        if self.instance and "student" in attrs and attrs["student"].id != self.instance.student_id:
+            raise serializers.ValidationError({"student": "Universitet maqsadi egasini o‘zgartirib bo‘lmaydi."})
+        return attrs
 
     @staticmethod
     def _percent(current, target):

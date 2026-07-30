@@ -35,6 +35,17 @@ class QuestionOptionSerializer(serializers.ModelSerializer):
         fields = ["id", "label", "text", "is_correct", "order"]
         extra_kwargs = {"is_correct": {"write_only": True}}
 
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if getattr(user, "is_authenticated", False) and (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "role", None) in {"admin", "teacher"}
+        ):
+            fields["is_correct"].write_only = False
+        return fields
+
 
 class QuestionSerializer(serializers.ModelSerializer):
     options = QuestionOptionSerializer(many=True)
@@ -46,6 +57,17 @@ class QuestionSerializer(serializers.ModelSerializer):
         model = Question
         fields = ["id", "code", "subject", "subject_title", "topic", "topic_title", "skills", "skill_details", "prompt", "explanation", "difficulty", "min_grade", "max_grade", "default_points", "image_url", "is_active", "options", "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not getattr(user, "is_authenticated", False) or (
+            not getattr(user, "is_superuser", False)
+            and getattr(user, "role", None) not in {"admin", "teacher"}
+        ):
+            fields.pop("explanation", None)
+        return fields
 
     def validate_options(self, options):
         if len(options) < 2:
@@ -67,12 +89,37 @@ class QuestionSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         options = validated_data.pop("options", None)
         skills = validated_data.pop("skills", None)
+        options_changed = False
+        if options is not None:
+            current_options = [
+                {
+                    "label": option.label,
+                    "text": option.text,
+                    "is_correct": option.is_correct,
+                    "order": option.order,
+                }
+                for option in instance.options.all()
+            ]
+            incoming_options = [
+                {
+                    "label": option["label"],
+                    "text": option["text"],
+                    "is_correct": bool(option.get("is_correct", False)),
+                    "order": option.get("order", 0),
+                }
+                for option in options
+            ]
+            options_changed = current_options != incoming_options
+            if options_changed and instance.options.filter(student_selections__isnull=False).exists():
+                raise serializers.ValidationError({
+                    "options": "Javob berilgan savol variantlarini almashtirib bo‘lmaydi. Savolni arxivlab, yangisini yarating."
+                })
         for key, value in validated_data.items():
             setattr(instance, key, value)
         instance.save()
         if skills is not None:
             instance.skills.set(skills)
-        if options is not None:
+        if options is not None and options_changed:
             instance.options.all().delete()
             QuestionOption.objects.bulk_create([QuestionOption(question=instance, **option) for option in options])
         return instance
@@ -133,6 +180,32 @@ class ExamSerializer(serializers.ModelSerializer):
         questions = validated_data.pop("exam_questions", None)
         target_classrooms = validated_data.pop("target_classrooms", None)
         recommended_categories = validated_data.pop("recommended_categories", None)
+        questions_changed = False
+        if questions is not None:
+            current_questions = [
+                {
+                    "question": item.question_id,
+                    "points": item.points,
+                    "order": item.order,
+                }
+                for item in instance.exam_questions.all()
+            ]
+            incoming_questions = [
+                {
+                    "question": item["question"].id,
+                    "points": item.get("points", 1),
+                    "order": item.get("order", 0),
+                }
+                for item in questions
+            ]
+            questions_changed = current_questions != incoming_questions
+            if (
+                questions_changed
+                and instance.exam_questions.filter(student_answers__isnull=False).exists()
+            ):
+                raise serializers.ValidationError({
+                    "exam_questions": "Javoblar mavjud test tarkibini almashtirib bo‘lmaydi. Testni arxivlab, yangisini yarating."
+                })
         for key, value in validated_data.items():
             setattr(instance, key, value)
         instance.save()
@@ -143,7 +216,7 @@ class ExamSerializer(serializers.ModelSerializer):
         if weights is not None:
             instance.subject_weights.all().delete()
             ExamSubjectWeight.objects.bulk_create([ExamSubjectWeight(exam=instance, **item) for item in weights])
-        if questions is not None:
+        if questions is not None and questions_changed:
             instance.exam_questions.all().delete()
             ExamQuestion.objects.bulk_create([ExamQuestion(exam=instance, **item) for item in questions])
         return instance

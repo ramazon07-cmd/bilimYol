@@ -52,7 +52,7 @@ class ClassroomViewSet(viewsets.ModelViewSet):
 
 class ParentStudentViewSet(viewsets.ModelViewSet):
     serializer_class = ParentStudentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [ReadOnlyOrAdmin]
 
     def get_queryset(self):
         user = self.request.user
@@ -60,14 +60,3 @@ class ParentStudentViewSet(viewsets.ModelViewSet):
         if user.is_superuser or user.role == User.Role.ADMIN:
             return queryset
         return queryset.filter(Q(parent=user) | Q(student=user))
-
-    def perform_create(self, serializer):
-        user = self.request.user
-        if user.role == User.Role.PARENT:
-            serializer.save(parent=user)
-        elif user.role == User.Role.ADMIN or user.is_superuser:
-            serializer.save()
-        else:
-            from rest_framework.exceptions import PermissionDenied
-
-            raise PermissionDenied("Faqat administrator yoki ota-ona bog‘lanish yaratishi mumkin.")

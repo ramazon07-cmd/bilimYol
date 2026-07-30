@@ -1,13 +1,21 @@
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from apps.accounts.models import Classroom
-from apps.academics.models import Exam
+from apps.accounts.models import Classroom, ParentStudent
+from apps.academics.models import Exam, Question
 from apps.pathways.models import Certificate, UniversityGoal
 
-from .models import DiagnosticReport
+from .models import DiagnosticReport, ExamAssignment
 
 
+User = get_user_model()
+
+
+@override_settings(DEBUG=True)
 class BilimYolApiTests(APITestCase):
     @classmethod
     def setUpTestData(cls):
@@ -107,7 +115,166 @@ class BilimYolApiTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         self.assertFalse(Certificate.objects.get(id=response.data["id"]).is_verified)
 
+    def test_student_cannot_self_verify_certificate_with_patch(self):
+        self.authenticate()
+        certificate = Certificate.objects.filter(is_verified=False).first()
+        if certificate is None:
+            goal = UniversityGoal.objects.get()
+            certificate = Certificate.objects.create(
+                student=goal.student,
+                kind=Certificate.Kind.OTHER,
+                title="Portfolio",
+                score=80,
+                issued_at=timezone.localdate(),
+            )
+        response = self.client.patch(
+            f"/api/certificates/{certificate.id}/",
+            {"is_verified": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        certificate.refresh_from_db()
+        self.assertFalse(certificate.is_verified)
 
+    def test_teacher_can_verify_only_own_class_certificate(self):
+        student = User.objects.get(username="student")
+        certificate = Certificate.objects.create(
+            student=student,
+            kind=Certificate.Kind.OTHER,
+            title="Portfolio",
+            score=80,
+            issued_at=timezone.localdate(),
+        )
+        self.authenticate("teacher", "teacher123")
+        response = self.client.post(f"/api/certificates/{certificate.id}/verify/", {}, format="json")
+        self.assertEqual(response.status_code, 200)
+        certificate.refresh_from_db()
+        self.assertTrue(certificate.is_verified)
+        self.assertEqual(certificate.verified_by.username, "teacher")
+
+    def test_parent_cannot_create_student_link(self):
+        outsider = User.objects.create_user(
+            username="outsider",
+            password="strong-pass-123",
+            full_name="Outside Student",
+            role=User.Role.STUDENT,
+        )
+        parent = User.objects.get(username="parent")
+        self.authenticate("parent", "parent123")
+        response = self.client.post(
+            "/api/parent-students/",
+            {"parent": parent.id, "student": outsider.id, "relationship": "Ota-ona"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(ParentStudent.objects.filter(parent=parent, student=outsider).exists())
+
+    def test_student_cannot_update_or_delete_assignment(self):
+        assignment = ExamAssignment.objects.get(student__username="student")
+        self.authenticate()
+        update_response = self.client.patch(
+            f"/api/assignments/{assignment.id}/",
+            {"is_active": False},
+            format="json",
+        )
+        delete_response = self.client.delete(f"/api/assignments/{assignment.id}/")
+        self.assertEqual(update_response.status_code, 403)
+        self.assertEqual(delete_response.status_code, 403)
+        assignment.refresh_from_db()
+        self.assertTrue(assignment.is_active)
+
+    def test_teacher_cannot_assign_exam_to_student_outside_own_class(self):
+        outsider = User.objects.create_user(
+            username="outside-class",
+            password="strong-pass-123",
+            full_name="Outside Class",
+            role=User.Role.STUDENT,
+        )
+        exam = Exam.objects.first()
+        self.authenticate("teacher", "teacher123")
+        response = self.client.post(
+            "/api/assignments/",
+            {"exam": exam.id, "student": outsider.id, "delivery_mode": "self", "is_active": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(ExamAssignment.objects.filter(exam=exam, student=outsider).exists())
+
+    def test_student_exam_payload_hides_answer_explanation(self):
+        self.authenticate()
+        response = self.client.get("/api/assignments/")
+        self.assertEqual(response.status_code, 200)
+        question = response.data["results"][0]["exam_detail"]["exam_questions"][0]["question_detail"]
+        self.assertNotIn("explanation", question)
+        self.assertNotIn("is_correct", question["options"][0])
+
+    def test_admin_question_payload_keeps_answer_fields(self):
+        self.authenticate("admin", "admin12345")
+        response = self.client.get("/api/questions/")
+        self.assertEqual(response.status_code, 200)
+        question = response.data["results"][0]
+        self.assertIn("explanation", question)
+        self.assertIn("is_correct", question["options"][0])
+
+    def test_answered_question_option_edit_returns_400_instead_of_500(self):
+        question = Question.objects.filter(options__student_selections__isnull=False).distinct().first()
+        self.authenticate("admin", "admin12345")
+        options = [
+            {
+                "label": item.label,
+                "text": item.text,
+                "is_correct": item.is_correct,
+                "order": item.order,
+            }
+            for item in question.options.all()
+        ]
+        options[0]["text"] = f"{options[0]['text']} updated"
+        response = self.client.patch(
+            f"/api/questions/{question.id}/",
+            {"options": options},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_answered_exam_question_edit_returns_400_instead_of_500(self):
+        exam = DiagnosticReport.objects.get().attempt.assignment.exam
+        self.authenticate("admin", "admin12345")
+        questions = [
+            {"question": item.question_id, "points": str(item.points), "order": item.order}
+            for item in exam.exam_questions.all()
+        ][:-1]
+        response = self.client.patch(
+            f"/api/exams/{exam.id}/",
+            {"exam_questions": questions},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_university_goal_student_cannot_be_reassigned(self):
+        goal = UniversityGoal.objects.get()
+        outsider = User.objects.create_user(
+            username="goal-outsider",
+            password="strong-pass-123",
+            full_name="Goal Outsider",
+            role=User.Role.STUDENT,
+        )
+        self.authenticate("parent", "parent123")
+        response = self.client.patch(
+            f"/api/university-goals/{goal.id}/",
+            {"student": outsider.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        goal.refresh_from_db()
+        self.assertNotEqual(goal.student_id, outsider.id)
+
+    @override_settings(DEBUG=False)
+    def test_seed_demo_is_blocked_outside_debug(self):
+        with self.assertRaises(CommandError):
+            call_command("seed_demo", verbosity=0)
+
+
+@override_settings(DEBUG=True)
 class AdministeredProfilingFlowTests(APITestCase):
     @classmethod
     def setUpTestData(cls):
