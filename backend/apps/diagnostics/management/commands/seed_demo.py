@@ -296,7 +296,7 @@ class Command(BaseCommand):
             for index, exam_question in enumerate(exam_questions):
                 selected = exam_question.question.options.get(label="A" if index in correct_indexes else "B")
                 StudentAnswer.objects.create(attempt=attempt, exam_question=exam_question, selected_option=selected)
-            submit_attempt(attempt)
+            submit_attempt(attempt, allow_inactive_exam=True)
 
         stanford, _ = University.objects.update_or_create(
             name="Stanford University",

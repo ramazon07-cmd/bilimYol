@@ -15,11 +15,13 @@ import {
   FileBarChart,
   GraduationCap,
   LayoutDashboard,
+  LoaderCircle,
   LogOut,
   MessageCircle,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Play,
   Plus,
   School,
   Search,
@@ -34,8 +36,13 @@ import {
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import type { LiveDiagnosticReport, WorkspaceSession } from "../lib/api";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  apiRequest,
+  type LiveDiagnosticReport,
+  type PaginatedResponse,
+  type WorkspaceSession,
+} from "../lib/api";
 import { AdminTestsPanel } from "./admin-tests-panel";
 import { AdminAdmissionsPanel } from "./admin/admin-admissions-panel";
 import { AdminCategoriesPanel } from "./admin/admin-categories-panel";
@@ -43,6 +50,7 @@ import { AdminClassesPanel } from "./admin/admin-classes-panel";
 import { AdminStudentsPanel } from "./admin/admin-students-panel";
 import { AdminUsersPanel } from "./admin/admin-users-panel";
 import { UniversityJourney } from "./dream-university";
+import type { Exam } from "../lib/profiling-api";
 
 type NavItem = { id: string; label: string; icon: LucideIcon; badge?: string };
 
@@ -71,6 +79,32 @@ const adminNav: NavItem[] = [
   { id: "users", label: "Foydalanuvchilar", icon: UserCog },
   { id: "settings", label: "Tizim sozlamalari", icon: Settings },
 ];
+
+const studentNav: NavItem[] = [
+  { id: "test", label: "English testi", icon: ClipboardList },
+  { id: "results", label: "Natijalar", icon: FileBarChart },
+];
+
+type StudentAssignment = {
+  id: number;
+  exam_detail: Exam;
+  available_from: string | null;
+  due_at: string | null;
+  is_active: boolean;
+  has_attempt: boolean;
+};
+
+type StudentAttempt = {
+  id: number;
+  assignment: number;
+  status: "in_progress" | "submitted" | "expired";
+  remaining_seconds: number;
+  question_order: number[];
+  answers: {
+    exam_question: number;
+    selected_option: number;
+  }[];
+};
 
 const students = [
   { name: "Bobur Xasanboyev", code: "BY-0821", score: 41, math: 15, english: 56, critical: 54, status: "Riskda", task: "62%" },
@@ -208,6 +242,264 @@ function SubjectProgress({ title, score, color }: { title: string; score: number
 
 function PageTitle({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) {
   return <div className="portal-page-title"><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div>{action}</div>;
+}
+
+export function StudentWorkspace({
+  session,
+  onLogout,
+  onOpenReport,
+}: {
+  session: WorkspaceSession;
+  onLogout: () => void;
+  onOpenReport: (report: LiveDiagnosticReport) => void;
+}) {
+  const [active, setActive] = useState("test");
+  const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
+  const [reports, setReports] = useState<LiveDiagnosticReport[]>([]);
+  const [activeAssignment, setActiveAssignment] = useState<StudentAssignment | null>(null);
+  const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [savingQuestion, setSavingQuestion] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      apiRequest<PaginatedResponse<StudentAssignment> | StudentAssignment[]>(
+        "/assignments/?is_active=true&page_size=100",
+      ),
+      apiRequest<PaginatedResponse<StudentAttempt> | StudentAttempt[]>(
+        "/attempts/?page_size=100&ordering=-started_at",
+      ),
+      apiRequest<PaginatedResponse<LiveDiagnosticReport> | LiveDiagnosticReport[]>(
+        "/reports/?page_size=100&ordering=-generated_at",
+      ),
+    ])
+      .then(([assignmentPayload, attemptPayload, reportPayload]) => {
+        if (!mounted) return;
+        const nextAssignments = Array.isArray(assignmentPayload) ? assignmentPayload : assignmentPayload.results ?? [];
+        const nextAttempts = Array.isArray(attemptPayload) ? attemptPayload : attemptPayload.results ?? [];
+        const nextReports = Array.isArray(reportPayload) ? reportPayload : reportPayload.results ?? [];
+        setAssignments(nextAssignments);
+        setReports(nextReports.filter((report) =>
+          report.subject_results.some((result) => result.subject.slug === "english"),
+        ));
+        const inProgress = nextAttempts.find((item) => item.status === "in_progress");
+        const matchingAssignment = inProgress
+          ? nextAssignments.find((item) => item.id === inProgress.assignment) ?? null
+          : null;
+        if (inProgress && matchingAssignment) {
+          setAttempt(inProgress);
+          setActiveAssignment(matchingAssignment);
+          setAnswers(Object.fromEntries(
+            inProgress.answers.map((answer) => [answer.exam_question, answer.selected_option]),
+          ));
+        }
+      })
+      .catch((requestError) => {
+        if (mounted) setError(requestError instanceof Error ? requestError.message : "Student kabinetini yuklab bo‘lmadi.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  const orderedQuestions = useMemo(() => {
+    if (!activeAssignment) return [];
+    const questions = activeAssignment.exam_detail.exam_questions;
+    if (!attempt?.question_order.length) return questions;
+    const byId = new Map(questions.map((item) => [item.id, item]));
+    const ordered = attempt.question_order
+      .map((id) => byId.get(id))
+      .filter((item): item is Exam["exam_questions"][number] => Boolean(item));
+    const orderedIds = new Set(ordered.map((item) => item.id));
+    return [...ordered, ...questions.filter((item) => !orderedIds.has(item.id))];
+  }, [activeAssignment, attempt]);
+
+  const startTest = async (assignment: StudentAssignment) => {
+    setLoading(true);
+    setError("");
+    try {
+      const nextAttempt = await apiRequest<StudentAttempt>(`/assignments/${assignment.id}/start/`, {
+        method: "POST",
+      });
+      setActiveAssignment(assignment);
+      setAttempt(nextAttempt);
+      setAnswers(Object.fromEntries(
+        nextAttempt.answers.map((answer) => [answer.exam_question, answer.selected_option]),
+      ));
+      window.dispatchEvent(new Event("bilimyol-exam-start"));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Testni boshlashda xatolik.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveAnswer = async (examQuestionId: number, optionId: number) => {
+    if (!attempt) return;
+    const previous = answers[examQuestionId];
+    setAnswers((current) => ({ ...current, [examQuestionId]: optionId }));
+    setSavingQuestion(examQuestionId);
+    setError("");
+    try {
+      await apiRequest(`/attempts/${attempt.id}/answer/`, {
+        method: "POST",
+        body: JSON.stringify({
+          exam_question: examQuestionId,
+          selected_option: optionId,
+          is_flagged: false,
+        }),
+      });
+    } catch (requestError) {
+      setAnswers((current) => {
+        const next = { ...current };
+        if (previous) next[examQuestionId] = previous;
+        else delete next[examQuestionId];
+        return next;
+      });
+      setError(requestError instanceof Error ? requestError.message : "Javob saqlanmadi.");
+    } finally {
+      setSavingQuestion(null);
+    }
+  };
+
+  const submitTest = async () => {
+    if (!attempt) return;
+    const unanswered = orderedQuestions.length - Object.keys(answers).length;
+    if (unanswered > 0) {
+      setError(`Yana ${unanswered} ta savolga javob berilmagan.`);
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const report = await apiRequest<LiveDiagnosticReport>(`/attempts/${attempt.id}/submit/`, {
+        method: "POST",
+      });
+      setReports((current) => [report, ...current]);
+      setAssignments((current) => current.filter((item) => item.id !== activeAssignment?.id));
+      setAttempt(null);
+      setActiveAssignment(null);
+      setAnswers({});
+      onOpenReport(report);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Testni yakunlab bo‘lmadi.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const testContent = (
+    <>
+      <PageTitle
+        eyebrow="O‘quvchi kabineti"
+        title={attempt ? activeAssignment?.exam_detail.title ?? "English diagnostikasi" : "English diagnostik testi"}
+        description={attempt ? "Javoblar avtomatik saqlanadi. Barcha savollarni tugatgach testni yakunlang." : "Admin biriktirgan sinfingizga mos English testini shu yerda ishlang."}
+      />
+      {error && <div className="admin-flow-message error">{error}</div>}
+      {loading && !attempt ? (
+        <article className="portal-card student-test-empty"><LoaderCircle className="spin" size={28} /><h2>Test yuklanmoqda...</h2></article>
+      ) : attempt && activeAssignment ? (
+        <section className="student-live-exam">
+          <article className="portal-card student-exam-progress">
+            <div><span>English · {activeAssignment.exam_detail.grade}-sinf</span><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong></div>
+            <div><Clock3 size={18} /><strong>{Math.max(0, Math.ceil(attempt.remaining_seconds / 60))} daqiqa</strong></div>
+          </article>
+          <div className="admin-question-stack">
+            {orderedQuestions.map((examQuestion, index) => {
+              const question = examQuestion.question_detail;
+              return (
+                <article className="portal-card mini-question-card" key={examQuestion.id}>
+                  <div className="mini-question-head">
+                    <span>{index + 1}</span>
+                    <div>
+                      <small>English</small>
+                      {question.context && <blockquote className="mini-question-context">{question.context}</blockquote>}
+                      <h3>{question.prompt}</h3>
+                    </div>
+                    {savingQuestion === examQuestion.id && <LoaderCircle className="spin" size={18} />}
+                  </div>
+                  <div className="mini-question-options">
+                    {question.options.map((option) => (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className={answers[examQuestion.id] === option.id ? "selected" : ""}
+                        onClick={() => void saveAnswer(examQuestion.id, option.id)}
+                        disabled={savingQuestion === examQuestion.id}
+                      >
+                        <i>{option.label}</i><span>{option.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <article className="portal-card admin-submit-bar">
+            <div><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong><p>Natija yakunlaganingizdan keyin kabinetda ochiladi.</p></div>
+            <button className="portal-primary" onClick={() => void submitTest()} disabled={submitting || Object.keys(answers).length !== orderedQuestions.length}>
+              {submitting ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />} Testni yakunlash
+            </button>
+          </article>
+        </section>
+      ) : assignments.length ? (
+        <div className="student-assignment-grid">
+          {assignments.map((assignment) => (
+            <article className="portal-card student-assignment-card" key={assignment.id}>
+              <span><ClipboardList size={24} /></span>
+              <div>
+                <small>Biriktirilgan test</small>
+                <h2>{assignment.exam_detail.title}</h2>
+                <p>{assignment.exam_detail.grade}-sinf · {assignment.exam_detail.exam_questions.length} savol · {assignment.exam_detail.duration_minutes} daqiqa</p>
+              </div>
+              <button className="portal-primary" onClick={() => void startTest(assignment)} disabled={loading}>
+                {loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
+                {assignment.has_attempt ? "Testni davom ettirish" : "Testni boshlash"}
+              </button>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <article className="portal-card student-test-empty">
+          <ClipboardList size={30} />
+          <h2>Faol English testi yo‘q</h2>
+          <p>Admin testni biriktirgandan keyin u shu sahifada paydo bo‘ladi.</p>
+          {reports[0] && <button className="portal-primary" onClick={() => onOpenReport(reports[0])}>Oxirgi natijani ko‘rish <ArrowRight size={16} /></button>}
+        </article>
+      )}
+    </>
+  );
+
+  const resultContent = (
+    <>
+      <PageTitle eyebrow="Natijalar" title="English diagnostika tarixi" description="Topshirgan testlaringiz va CEFR darajangiz." />
+      <div className="student-result-list">
+        {reports.map((report) => {
+          const english = report.subject_results.find((item) => item.subject.slug === "english");
+          return (
+            <article className="portal-card" key={report.id}>
+              <span><FileBarChart size={22} /></span>
+              <div><strong>{report.exam?.title ?? "English diagnostikasi"}</strong><small>{report.generated_at ? new Date(report.generated_at).toLocaleDateString("uz-UZ") : "—"} · {report.grade ?? report.exam?.grade ?? "—"}-sinf</small></div>
+              <p><strong>{Math.round(Number(report.overall_score))}/100</strong><small>{english?.level ?? "Daraja hisoblanmoqda"}</small></p>
+              <button className="portal-secondary" onClick={() => onOpenReport(report)}>Natijani ochish <ArrowRight size={15} /></button>
+            </article>
+          );
+        })}
+        {!reports.length && <article className="portal-card student-test-empty"><FileBarChart size={28} /><h2>Natija hali yo‘q</h2><p>English testini yakunlaganingizdan keyin natija shu yerda chiqadi.</p></article>}
+      </div>
+    </>
+  );
+
+  return (
+    <WorkspaceShell session={session} nav={studentNav} active={active} onChange={setActive} onLogout={onLogout} roleLabel="O‘quvchi">
+      {active === "results" ? resultContent : testContent}
+    </WorkspaceShell>
+  );
 }
 
 export function ParentWorkspace({ session, onLogout, onOpenReport }: { session: WorkspaceSession; onLogout: () => void; onOpenReport: () => void }) {
@@ -381,7 +673,7 @@ export function AdminWorkspace({ session, onLogout, onOpenReport, onOpenExamResu
     { icon: UserCheck, title: "Qabul va suhbat", description: "Admin profil, maqsad va suhbat xulosasini kiritadi." },
     { icon: Target, title: "Kategoriyalash", description: "O‘quvchining yo‘nalishi va qo‘llab-quvvatlash darajasi belgilanadi." },
     { icon: ClipboardList, title: "Test tavsiyasi", description: "Profilga mos diagnostika backend orqali tanlanadi." },
-    { icon: UserRound, title: "Admin bilan test", description: "Javoblar real vaqt rejimida backendga saqlanadi." },
+    { icon: UserRound, title: "Student kabineti", description: "Admin credential beradi, o‘quvchi testni o‘z kabinetida ishlaydi." },
     { icon: CheckCircle2, title: "Shaxsiy roadmap", description: "Natija asosida draft yaratiladi va ustozga yuboriladi." },
   ];
 
@@ -433,7 +725,7 @@ export function AdminWorkspace({ session, onLogout, onOpenReport, onOpenExamResu
           <div className="admin-readiness-head"><div><span>Tezkor amallar</span><h2>Keyingi qadam</h2></div></div>
           <div className="admin-quick-actions">
             <button type="button" onClick={() => setActive("admissions")}><span><UserCheck size={20} /></span><div><strong>Qabul va suhbat</strong><small>Yangi profil yaratish</small></div><ArrowRight size={17} /></button>
-            <button type="button" onClick={() => setActive("exams")}><span><ClipboardList size={20} /></span><div><strong>Diagnostika</strong><small>Admin bilan test</small></div><ArrowRight size={17} /></button>
+            <button type="button" onClick={() => setActive("exams")}><span><ClipboardList size={20} /></span><div><strong>Diagnostika</strong><small>English testini biriktirish</small></div><ArrowRight size={17} /></button>
             <button type="button" onClick={() => setActive("categories")}><span><Target size={20} /></span><div><strong>Kategoriyalar</strong><small>Profiling teglarini boshqarish</small></div><ArrowRight size={17} /></button>
             <button type="button" onClick={onOpenReport}><span><FileBarChart size={20} /></span><div><strong>Hisobot</strong><small>Oxirgi diagnostikani ko‘rish</small></div><ArrowRight size={17} /></button>
           </div>

@@ -1,10 +1,13 @@
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from random import SystemRandom
 
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
+
+from apps.academics.policies import is_enabled_diagnostic_exam
 
 from .models import (
     DiagnosticReport,
@@ -35,6 +38,21 @@ def score_level(score: Decimal) -> str:
     return "Juda yaxshi"
 
 
+def subject_level(subject_slug: str, score: Decimal) -> str:
+    if subject_slug != "english":
+        return score_level(score)
+    value = float(score)
+    if value <= 20:
+        return "A1"
+    if value <= 40:
+        return "A2"
+    if value <= 60:
+        return "B1"
+    if value <= 80:
+        return "B2"
+    return "C1"
+
+
 def confidence_for(question_count: int) -> str:
     if question_count >= 5:
         return "high"
@@ -44,11 +62,13 @@ def confidence_for(question_count: int) -> str:
 
 
 @transaction.atomic
-def submit_attempt(attempt: ExamAttempt, submitted_by=None) -> DiagnosticReport:
+def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_exam=False) -> DiagnosticReport:
     if attempt.status != ExamAttempt.Status.IN_PROGRESS:
         raise ValidationError("Bu urinish allaqachon yakunlangan.")
 
     exam = attempt.assignment.exam
+    if not allow_inactive_exam and not is_enabled_diagnostic_exam(exam):
+        raise ValidationError("Hozircha faqat English diagnostik testi faol.")
     exam_questions = list(
         exam.exam_questions.select_related("question__subject", "question__topic")
         .prefetch_related("question__skills", "question__options")
@@ -117,6 +137,8 @@ def submit_attempt(attempt: ExamAttempt, submitted_by=None) -> DiagnosticReport:
     attempt.save(update_fields=[
         "status", "submitted_at", "submitted_by", "earned_points", "overall_score", "is_ready",
     ])
+    attempt.assignment.is_active = False
+    attempt.assignment.save(update_fields=["is_active"])
 
     report, _ = DiagnosticReport.objects.update_or_create(
         attempt=attempt,
@@ -141,7 +163,9 @@ def submit_attempt(attempt: ExamAttempt, submitted_by=None) -> DiagnosticReport:
             possible_points=data["possible"],
             score=subject_scores[subject_id],
             weight_percent=weights.get(subject_id).weight_percent if weights.get(subject_id) else 0,
-            level=score_level(subject_scores[subject_id]),
+            level=subject_level(weights[subject_id].subject.slug, subject_scores[subject_id])
+            if weights.get(subject_id)
+            else score_level(subject_scores[subject_id]),
             percentile=max(1, min(99, int(subject_scores[subject_id] * Decimal("0.82")))),
             potential=min(100, int(subject_scores[subject_id] + (100 - subject_scores[subject_id]) * Decimal("0.55"))),
         )
@@ -296,13 +320,20 @@ def build_roadmap(report: DiagnosticReport) -> Roadmap:
 
 
 def start_attempt(assignment, started_by=None):
+    if not is_enabled_diagnostic_exam(assignment.exam):
+        raise ValidationError("Hozircha faqat English diagnostik testi faol.")
     existing = assignment.attempts.filter(status=ExamAttempt.Status.IN_PROGRESS).first()
     if existing:
         return existing
     if assignment.attempts.filter(status=ExamAttempt.Status.SUBMITTED).exists():
         raise ValidationError("Bu imtihon uchun urinish allaqachon yakunlangan.")
+    question_order = list(
+        assignment.exam.exam_questions.order_by("order", "id").values_list("id", flat=True)
+    )
+    SystemRandom().shuffle(question_order)
     return ExamAttempt.objects.create(
         assignment=assignment,
         started_by=started_by,
         expires_at=timezone.now() + timedelta(minutes=assignment.exam.duration_minutes),
+        question_order=question_order,
     )

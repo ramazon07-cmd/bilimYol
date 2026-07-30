@@ -2570,6 +2570,215 @@ button { line-height: 1.2; }
 .comparison-rows span { color: #7b858f; font-size: 11px; }
 .comparison-rows em { font-size: 11px; font-style: normal; font-weight: 850; text-align: right; }
 
+.admin-field > small {
+  color: #7c8795;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.admin-credential-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #c9dfd3;
+  border-radius: 15px;
+  background: #f2faf6;
+}
+
+.admin-credential-card > div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #216a4b;
+}
+
+.admin-credential-card > div > span {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-credential-card > div strong,
+.admin-credential-card > div small {
+  display: block;
+}
+
+.admin-credential-card > div small {
+  color: #618071;
+  font-size: 10px;
+}
+
+.admin-credential-card label {
+  display: grid;
+  grid-template-columns: 135px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.admin-credential-card label span {
+  color: #738078;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-credential-card label strong {
+  color: #173b2c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.student-assignment-grid,
+.student-result-list {
+  display: grid;
+  gap: 16px;
+}
+
+.student-assignment-card {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+}
+
+.student-assignment-card > span {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 15px;
+  background: #f6e9ee;
+  color: #680322;
+}
+
+.student-assignment-card small {
+  color: #a87718;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.student-assignment-card h2 {
+  margin: 5px 0;
+  color: #071b3a;
+  font-size: 21px;
+}
+
+.student-assignment-card p {
+  margin: 0;
+  color: #748091;
+  font-size: 12px;
+}
+
+.student-test-empty {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 34px;
+  color: #788493;
+  text-align: center;
+}
+
+.student-test-empty h2,
+.student-test-empty p {
+  margin: 0;
+}
+
+.student-test-empty h2 {
+  color: #071b3a;
+  font-size: 22px;
+}
+
+.student-test-empty p {
+  max-width: 520px;
+  line-height: 1.6;
+}
+
+.student-live-exam {
+  display: grid;
+  gap: 18px;
+}
+
+.student-exam-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+}
+
+.student-exam-progress > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-exam-progress > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.student-exam-progress span {
+  color: #a87718;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.student-exam-progress strong {
+  color: #071b3a;
+}
+
+.student-result-list > article {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 100px auto;
+  align-items: center;
+  gap: 16px;
+  padding: 19px 22px;
+}
+
+.student-result-list > article > span {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 13px;
+  background: #eef3f8;
+  color: #214b78;
+}
+
+.student-result-list article > div {
+  display: grid;
+  gap: 4px;
+}
+
+.student-result-list article > div strong {
+  color: #071b3a;
+  font-size: 14px;
+}
+
+.student-result-list article small {
+  color: #7d8794;
+  font-size: 10px;
+}
+
+.student-result-list article > p {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.student-result-list article > p strong {
+  color: #680322;
+  font-size: 18px;
+}
+
 @media (max-width: 1100px) {
   .admin-diagnostic-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .admin-diagnostic-filters .wide { grid-column: span 2; }
@@ -2592,6 +2801,13 @@ button { line-height: 1.2; }
   .admin-attempt-history > div { grid-template-columns: 1fr auto; padding: 12px 0; }
   .admin-attempt-history button { width: 100%; }
   .admin-question-review-body { padding-left: 0; padding-right: 0; }
+  .student-assignment-card,
+  .student-result-list > article { grid-template-columns: 46px 1fr; }
+  .student-assignment-card > button,
+  .student-result-list article > button { grid-column: 1 / -1; width: 100%; }
+  .student-result-list article > p { text-align: right; }
+  .student-exam-progress { align-items: stretch; flex-direction: column; }
+  .admin-credential-card label { grid-template-columns: 1fr; }
 }
 
 @media print {

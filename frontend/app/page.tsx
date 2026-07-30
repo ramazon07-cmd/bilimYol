@@ -32,7 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AdminWorkspace, ParentWorkspace, TeacherWorkspace } from "./components/role-workspaces";
+import { AdminWorkspace, ParentWorkspace, StudentWorkspace, TeacherWorkspace } from "./components/role-workspaces";
 import { UniversityJourney } from "./components/dream-university";
 import {
   MINI_EXAM_STORAGE_KEY,
@@ -468,12 +468,18 @@ function Overview({
   const createdAt = miniResult?.createdAt ?? "18-iyul · 14:10";
   const bestSubject = [...subjectList].sort((a, b) => b.score - a.score)[0];
   const weakestSubject = [...subjectList].sort((a, b) => a.score - b.score)[0];
+  const englishOnly = Boolean(
+    liveReport
+    && subjectList.length === 1
+    && subjectList[0]?.id === "english",
+  );
   const levelText = overallScore < 35 ? "sayoz" : overallScore < 50 ? "zaif" : overallScore < 67 ? "o‘rtacha" : overallScore < 84 ? "yaxshi" : "juda yaxshi";
   const scoreRangeLow = miniResult ? Math.max(overallScore - 3, 0) : liveReport ? Math.round(Number(liveReport.range_low)) : 38;
   const scoreRangeHigh = miniResult ? Math.min(overallScore + 3, 100) : liveReport ? Math.round(Number(liveReport.range_high)) : 44;
   const expectedScore = miniResult ? overallScore : liveReport ? Math.round(Number(liveReport.expected_score)) : 42;
 
   const subjectWeight = (subject: Subject) => {
+    if (englishOnly) return 100;
     if (!miniResult) return subject.id === "critical" ? 30 : 35;
     return subject.id === "math" ? 40 : 30;
   };
@@ -484,16 +490,16 @@ function Overview({
         <div className="hero-art hero-art-one">S</div><div className="hero-art hero-art-two">1</div>
         <div className="report-hero-content">
           <div className="hero-brand"><Logo compact /><span /> <em>Biz ilmga sodiqmiz</em></div>
-          <span className="hero-kicker">{miniResult ? "Administrator o‘tkazgan qabul mini-imtihoni" : "Prezident maktabiga kirish diagnostikasi"}</span>
+          <span className="hero-kicker">{miniResult ? "Administrator o‘tkazgan qabul mini-imtihoni" : englishOnly ? "English placement diagnostikasi" : "Prezident maktabiga kirish diagnostikasi"}</span>
           <h1>Umumiy diagnostik<br />xulosa</h1>
-          <p>IQ, matematika va ingliz tili — bir qarashda.</p>
+          <p>{englishOnly ? "English darajasi, mavzular va ko‘nikmalar — bir qarashda." : "IQ, matematika va ingliz tili — bir qarashda."}</p>
           <div className="candidate-meta">
             <span><small>Nomzod</small>{candidateName}</span>
             <span><small>Sinf</small>{candidateGrade}</span>
-            <span><small>Imtihon</small>{miniResult ? "3 fan · jami 10 savol" : "3 fan · har biri 100 ball"}</span>
+            <span><small>Imtihon</small>{miniResult ? "3 fan · jami 10 savol" : englishOnly ? "English · 100 ball" : "3 fan · har biri 100 ball"}</span>
           </div>
           <div className="hero-score-card">
-            <div className="hero-score"><strong>{overallScore}</strong><span>/100</span><em>{miniResult ? "10 savollik mini-imtihon" : "3 fan o‘rtachasi"}</em></div>
+            <div className="hero-score"><strong>{overallScore}</strong><span>/100</span><em>{miniResult ? "10 savollik mini-imtihon" : englishOnly ? "English natijasi" : "3 fan o‘rtachasi"}</em></div>
             <div className="hero-subject-scores">{subjectList.map((subject) => <span key={subject.id}><strong>{subject.score}</strong>{subject.title}</span>)}</div>
             <div className="hero-mini-facts">
               {miniResult ? (
@@ -504,9 +510,9 @@ function Overview({
                 </>
               ) : (
                 <>
-                  <span><strong>42/53</strong>umumiy reyting</span>
-                  <span><strong>23-foiz</strong>persentil</span>
-                  <span><strong>38</strong>salohiyat o‘rt.</span>
+                  <span><strong>{liveReport?.answer_summary ? `${liveReport.answer_summary.correct}/${liveReport.answer_summary.total}` : "—"}</strong>to‘g‘ri javob</span>
+                  <span><strong>{liveReport?.subject_results[0]?.level ?? "—"}</strong>English daraja</span>
+                  <span><strong>{subjectList.length}</strong>faol fan</span>
                 </>
               )}
             </div>
@@ -538,7 +544,7 @@ function Overview({
           <div className="report-stamp"><FileCheck2 size={20} /><span>Hisobot yaratildi<strong>{createdAt}</strong></span></div>
         </div>
         <div className="level-metrics">
-          <div><span>Umumiy ball</span><strong className="gold-text">{overallScore}<small>/100</small></strong><em>{miniResult ? "10 ta savol natijasi" : "Uch fan o‘rtachasi"}</em></div>
+          <div><span>Umumiy ball</span><strong className="gold-text">{overallScore}<small>/100</small></strong><em>{miniResult ? "10 ta savol natijasi" : englishOnly ? "English testi natijasi" : "Uch fan o‘rtachasi"}</em></div>
           <div><span>Taxminiy oraliq</span><strong>{scoreRangeLow}–{scoreRangeHigh}</strong><em>Hisoblashdagi aniqlik</em></div>
           <div><span>Kutilayotgan ball</span><strong className="gold-text">~{expectedScore}</strong><em>Bir xil sharoit saqlansa</em></div>
         </div>
@@ -546,7 +552,7 @@ function Overview({
         <div className="formula-block">
           <div>
             <h3>Umumiy ball qanday hisoblandi?</h3>
-            <p>{miniResult ? "10 savollik mini-imtihondagi fanlar ulushi" : "8-sinf imtihoni uchun tasdiqlangan fanlar og‘irligi"}</p>
+            <p>{miniResult ? "10 savollik mini-imtihondagi fanlar ulushi" : englishOnly ? "English testi 100% og‘irlik bilan hisoblanadi" : "8-sinf imtihoni uchun tasdiqlangan fanlar og‘irligi"}</p>
           </div>
           <div className="formula-table">
             {subjectList.map((subject) => {
@@ -565,13 +571,15 @@ function Overview({
           <p className="formula-note">
             {miniResult
               ? "Formula: Matematika 4 savol (40%) + Ingliz tili 3 savol (30%) + IQ 3 savol (30%)."
-              : "Formula: Matematika × 35% + Ingliz tili × 35% + IQ × 30%."}
+              : englishOnly
+                ? "Formula: English natijasi × 100%."
+                : "Formula: Matematika × 35% + Ingliz tili × 35% + IQ × 30%."}
           </p>
         </div>
       </section>
 
       <section className="section-block subjects-section">
-        <div className="section-number">03</div><h2>Uch fan bo‘yicha</h2><p>Har bir fan — ball, salohiyat va asosiy o‘sish yo‘nalishlari bilan.</p>
+        <div className="section-number">03</div><h2>{englishOnly ? "English natijasi" : "Uch fan bo‘yicha"}</h2><p>{englishOnly ? "Daraja, ball va asosiy o‘sish yo‘nalishlari." : "Har bir fan — ball, salohiyat va asosiy o‘sish yo‘nalishlari bilan."}</p>
         <div className="subject-grid">{subjectList.map((subject) => <SubjectCard key={subject.id} subject={subject} onOpen={() => onSelect(subject.id)} />)}</div>
       </section>
     </>
@@ -705,7 +713,7 @@ function SubjectReport({
   return (
     <>
       <SubjectHero subject={subject} candidateName={candidateName} grade={grade} />
-      <QuestionTable subject={subject} />
+      {subject.questions.length > 0 && <QuestionTable subject={subject} />}
       <SkillsProfile subject={subject} />
       <GrowthChart subject={subject} />
       <Roadmap subject={subject} />
@@ -764,17 +772,31 @@ function ReportApp({
   const displaySubjects = useMemo(() => {
     if (miniExamResult) return buildMiniExamSubjects(miniExamResult);
 
-    return subjects.map((subject) => {
-      const live = liveReport?.subject_results.find((result) => result.subject.slug === subject.id || (subject.id === "critical" && result.subject.slug === "iq"));
-      return live
-        ? {
-            ...subject,
-            score: Math.round(Number(live.score)),
-            percentile: live.percentile,
-            potential: live.potential,
-            accent: live.subject.color || subject.accent,
-          }
-        : subject;
+    if (!liveReport) return subjects;
+
+    return liveReport.subject_results.map((live) => {
+      const subjectId = live.subject.slug === "iq" ? "critical" : live.subject.slug;
+      const template = subjects.find((subject) => subject.id === subjectId) ?? subjects[1];
+      const skillRows = (liveReport.skill_results ?? [])
+        .filter((item) => !live.subject.id || !item.skill?.subject || item.skill.subject === live.subject.id)
+        .sort((a, b) => Number(b.score) - Number(a.score));
+      const skillScores = skillRows.map((item) => Math.round(Number(item.score)));
+      const paddedSkills = [...skillScores, ...Array(7).fill(Math.round(Number(live.score)))].slice(0, 7);
+      return {
+        ...template,
+        score: Math.round(Number(live.score)),
+        percentile: live.percentile,
+        potential: live.potential,
+        accent: live.subject.color || template.accent,
+        strong: skillRows.length
+          ? skillRows.slice(0, 2).map((item) => item.skill?.title ?? "English")
+          : ["English natijasi"],
+        weak: skillRows.length
+          ? [...skillRows].reverse().slice(0, 2).map((item) => item.skill?.title ?? "English")
+          : ["English ko‘nikmalari"],
+        skills: paddedSkills,
+        questions: [],
+      };
     });
   }, [liveReport, miniExamResult]);
 
@@ -836,6 +858,7 @@ export default function Home() {
   const [restoringSession, setRestoringSession] = useState(true);
   const [viewingReport, setViewingReport] = useState(false);
   const [adminDiagnosticReport, setAdminDiagnosticReport] = useState<LiveDiagnosticReport | null>(null);
+  const [studentDiagnosticReport, setStudentDiagnosticReport] = useState<LiveDiagnosticReport | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -849,10 +872,21 @@ export default function Home() {
     return () => { active = false; };
   }, []);
 
-  const logout = () => { clearApiSession(); setSession(null); setViewingReport(false); setAdminDiagnosticReport(null); };
+  const logout = () => {
+    clearApiSession();
+    setSession(null);
+    setViewingReport(false);
+    setAdminDiagnosticReport(null);
+    setStudentDiagnosticReport(null);
+  };
   if (restoringSession) return <main className="session-restore-screen"><span className="session-restore-spinner" /><strong>Kabinet tiklanmoqda...</strong></main>;
   if (!session) return <Login onEnter={setSession} />;
-  if (session.role === "student") return <ReportApp onLogout={logout} liveReport={session.report} session={session} />;
+  if (session.role === "student" && studentDiagnosticReport) {
+    return <ReportApp onLogout={() => setStudentDiagnosticReport(null)} liveReport={studentDiagnosticReport} session={session} exitLabel="Kabinetga qaytish" resultOnly />;
+  }
+  if (session.role === "student") {
+    return <StudentWorkspace session={session} onLogout={logout} onOpenReport={setStudentDiagnosticReport} />;
+  }
   if (adminDiagnosticReport) return <ReportApp onLogout={() => setAdminDiagnosticReport(null)} liveReport={adminDiagnosticReport} session={session} exitLabel="Admin kabinetiga qaytish" resultOnly />;
   if (viewingReport) return <ReportApp onLogout={() => setViewingReport(false)} liveReport={session.report} session={session} exitLabel="Kabinetga qaytish" />;
   if (session.role === "parent") return <ParentWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} />;

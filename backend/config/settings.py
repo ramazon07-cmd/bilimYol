@@ -115,3 +115,7 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
+
+# Mathematics and IQ/Critical Thinking are intentionally inactive until their
+# reviewed question banks are ready. Extend this tuple when those banks ship.
+DIAGNOSTIC_ACTIVE_SUBJECTS = ("english",)

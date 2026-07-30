@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.accounts.serializers import ClassroomSerializer, UserSerializer
+from apps.academics.policies import is_enabled_diagnostic_exam
 from apps.academics.serializers import ExamSerializer, SkillSerializer, SubjectSerializer, TopicSerializer
 
 from .models import (
@@ -35,6 +36,20 @@ class AssignmentSerializer(serializers.ModelSerializer):
     def get_has_attempt(self, obj):
         return obj.attempts.exists()
 
+    def validate_exam(self, exam):
+        if not is_enabled_diagnostic_exam(exam):
+            raise serializers.ValidationError(
+                "Hozircha faqat English savollaridan iborat diagnostik test faol."
+            )
+        return exam
+
+    def validate_delivery_mode(self, value):
+        if value != ExamAssignment.DeliveryMode.SELF:
+            raise serializers.ValidationError(
+                "Diagnostikani o‘quvchi o‘z login va paroli orqali topshiradi."
+            )
+        return value
+
 
 class AnswerSerializer(serializers.ModelSerializer):
     question_code = serializers.CharField(source="exam_question.question.code", read_only=True)
@@ -60,11 +75,11 @@ class AttemptSerializer(serializers.ModelSerializer):
         fields = [
             "id", "assignment", "student_name", "exam_title", "status", "started_at",
             "submitted_at", "expires_at", "remaining_seconds", "started_by", "submitted_by",
-            "earned_points", "overall_score", "is_ready", "answers",
+            "earned_points", "overall_score", "is_ready", "question_order", "answers",
         ]
         read_only_fields = [
             "status", "started_at", "submitted_at", "expires_at", "started_by",
-            "submitted_by", "earned_points", "overall_score", "is_ready",
+            "submitted_by", "earned_points", "overall_score", "is_ready", "question_order",
         ]
 
     def get_remaining_seconds(self, obj):
@@ -194,14 +209,13 @@ class DiagnosticReportSerializer(serializers.ModelSerializer):
 
 class DiagnosticReportDetailSerializer(DiagnosticReportSerializer):
     attempt_detail = serializers.SerializerMethodField()
-    question_review = serializers.SerializerMethodField()
     strengths = serializers.SerializerMethodField()
     weaknesses = serializers.SerializerMethodField()
     previous_attempts = serializers.SerializerMethodField()
 
     class Meta(DiagnosticReportSerializer.Meta):
         fields = DiagnosticReportSerializer.Meta.fields + [
-            "attempt_detail", "question_review", "strengths", "weaknesses", "previous_attempts",
+            "attempt_detail", "strengths", "weaknesses", "previous_attempts",
         ]
 
     def get_attempt_detail(self, obj):
@@ -219,55 +233,6 @@ class DiagnosticReportDetailSerializer(DiagnosticReportSerializer):
             "earned_points": attempt.earned_points,
             "delivery_mode": assignment.delivery_mode,
         }
-
-    def get_question_review(self, obj):
-        request = self.context.get("request")
-        user = getattr(request, "user", None)
-        can_see_answer_key = bool(
-            getattr(user, "is_superuser", False)
-            or getattr(user, "role", None) in {"admin", "teacher"}
-        )
-        answers = {item.exam_question_id: item for item in obj.attempt.answers.all()}
-        rows = []
-        for exam_question in obj.attempt.assignment.exam.exam_questions.all():
-            question = exam_question.question
-            answer = answers.get(exam_question.id)
-            selected = answer.selected_option if answer else None
-            correct = next((option for option in question.options.all() if option.is_correct), None)
-            row = {
-                "exam_question_id": exam_question.id,
-                "code": question.code,
-                "prompt": question.prompt,
-                "subject": {
-                    "id": question.subject_id,
-                    "slug": question.subject.slug,
-                    "title": question.subject.title,
-                },
-                "topic": {"id": question.topic_id, "code": question.topic.code, "title": question.topic.title},
-                "skills": [
-                    {"id": skill.id, "slug": skill.slug, "title": skill.title}
-                    for skill in question.skills.all()
-                ],
-                "difficulty": question.difficulty,
-                "points": exam_question.points,
-                "selected_option": (
-                    {"id": selected.id, "label": selected.label, "text": selected.text}
-                    if selected else None
-                ),
-                "is_answered": answer is not None,
-                "is_correct": bool(answer and answer.is_correct),
-                "earned_points": answer.earned_points if answer else 0,
-                "is_flagged": bool(answer and answer.is_flagged),
-                "answered_at": answer.answered_at if answer else None,
-            }
-            if can_see_answer_key:
-                row["correct_option"] = (
-                    {"id": correct.id, "label": correct.label, "text": correct.text}
-                    if correct else None
-                )
-                row["explanation"] = question.explanation
-            rows.append(row)
-        return rows
 
     def _rank_result(self, obj, reverse):
         rows = []

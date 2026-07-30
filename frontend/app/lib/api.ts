@@ -141,7 +141,6 @@ export type LiveDiagnosticReportDetail = LiveDiagnosticReport & {
     earned_points: string | number;
     delivery_mode: string;
   };
-  question_review: LiveQuestionReview[];
   strengths: { kind: "skill" | "topic"; title: string; subject: string; score: string | number }[];
   weaknesses: { kind: "skill" | "topic"; title: string; subject: string; score: string | number }[];
   previous_attempts: LivePreviousAttempt[];

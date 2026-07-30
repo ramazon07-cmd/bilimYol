@@ -2,6 +2,7 @@ from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Q
 
 from apps.academics.models import Exam
+from apps.academics.policies import enabled_diagnostic_exams
 
 from .models import StudentProfile
 
@@ -17,6 +18,7 @@ def recommend_exams(profile: StudentProfile):
     queryset = Exam.objects.filter(
         status__in=[Exam.Status.ACTIVE, Exam.Status.SCHEDULED],
     )
+    queryset = enabled_diagnostic_exams(queryset)
 
     if profile.grade:
         grade_pool = queryset.filter(Q(grade=profile.grade) | Q(grade__isnull=True))
@@ -35,7 +37,10 @@ def recommend_exams(profile: StudentProfile):
             profile.category_links.filter(is_active=True).values_list("category_id", flat=True)
         )
         if category_ids:
-            matched = grade_pool.filter(recommended_categories__in=category_ids).distinct()
+            matched = grade_pool.filter(
+                Q(recommended_categories__in=category_ids)
+                | Q(recommended_categories__isnull=True)
+            ).distinct()
             if matched.exists():
                 return matched
 

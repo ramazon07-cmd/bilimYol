@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 from rest_framework import decorators, response, status, viewsets
 
 from apps.accounts.permissions import IsAdminRole, ReadOnlyOrAdmin
@@ -8,6 +9,7 @@ from apps.accounts.models import Classroom
 from apps.diagnostics.models import ExamAssignment
 
 from .models import Exam, Question, Skill, Subject, Topic
+from .policies import enabled_diagnostic_exams
 from .serializers import ExamSerializer, QuestionSerializer, SkillSerializer, SubjectSerializer, TopicSerializer
 
 
@@ -65,6 +67,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Exam.objects.select_related("created_by").prefetch_related("target_classrooms", "recommended_categories", "subject_weights__subject", "exam_questions__question__options", "exam_questions__question__skills")
+        queryset = enabled_diagnostic_exams(queryset)
         if self.request.user.role == "student":
             return queryset.exclude(status=Exam.Status.DRAFT)
         return queryset
@@ -116,6 +119,8 @@ class ExamViewSet(viewsets.ModelViewSet):
             assignment.due_at = request.data.get("due_at") or exam.ends_at
             assignment.is_active = True
             assignment.assigned_by = request.user
+            assignment.delivery_mode = ExamAssignment.DeliveryMode.SELF
+            assignment.administered_by = None
             assignment.save()
             created += int(was_created)
         return response.Response({
@@ -129,7 +134,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         student_id = request.data.get("student")
         classroom_id = request.data.get("classroom")
-        delivery_mode = request.data.get("delivery_mode", ExamAssignment.DeliveryMode.ADMINISTERED)
+        requested_password = str(request.data.get("temporary_password") or "").strip()
 
         try:
             student = User.objects.get(id=student_id, role=User.Role.STUDENT)
@@ -153,8 +158,15 @@ class ExamViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if delivery_mode not in ExamAssignment.DeliveryMode.values:
-            return response.Response({"detail": "Test topshirish rejimi noto‘g‘ri."}, status=status.HTTP_400_BAD_REQUEST)
+        if requested_password and len(requested_password) < 8:
+            return response.Response(
+                {"detail": "Vaqtinchalik parol kamida 8 belgidan iborat bo‘lishi kerak."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        temporary_password = requested_password or get_random_string(
+            10,
+            allowed_chars="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789",
+        )
 
         assignment = ExamAssignment.objects.filter(exam=exam, student=student, is_active=True).first()
         created = assignment is None
@@ -163,11 +175,11 @@ class ExamViewSet(viewsets.ModelViewSet):
         assignment.classroom = classroom
         assignment.is_active = True
         assignment.assigned_by = request.user
-        assignment.delivery_mode = delivery_mode
-        assignment.administered_by = (
-            request.user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None
-        )
+        assignment.delivery_mode = ExamAssignment.DeliveryMode.SELF
+        assignment.administered_by = None
         assignment.save()
+        student.set_password(temporary_password)
+        student.save(update_fields=["password"])
         if profile:
             profile.status = profile.Status.TEST_ASSIGNED
             profile.save(update_fields=["status", "updated_at"])
@@ -176,4 +188,8 @@ class ExamViewSet(viewsets.ModelViewSet):
             "created": created,
             "student": student.full_name,
             "delivery_mode": assignment.delivery_mode,
+            "credentials": {
+                "username": student.username,
+                "temporary_password": temporary_password,
+            },
         })

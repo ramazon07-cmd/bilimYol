@@ -10,7 +10,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsTeacherOrAdmin
-from apps.academics.models import ExamQuestion, QuestionOption
+from apps.academics.models import Exam, ExamQuestion, QuestionOption
+from apps.academics.policies import enabled_diagnostic_exams, is_enabled_diagnostic_exam
 
 from .models import DiagnosticReport, ExamAssignment, ExamAttempt, Roadmap, StudentAnswer
 from .serializers import (
@@ -63,6 +64,9 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         queryset = ExamAssignment.objects.select_related(
             "exam", "student", "classroom", "assigned_by", "administered_by",
         ).prefetch_related("attempts")
+        queryset = queryset.filter(
+            exam_id__in=enabled_diagnostic_exams(Exam.objects.all()).values("id")
+        )
         if user.is_superuser or user.role == User.Role.ADMIN:
             return queryset
         if user.role == User.Role.STUDENT:
@@ -74,13 +78,16 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         if user.role not in {User.Role.ADMIN, User.Role.TEACHER} and not user.is_superuser:
             raise PermissionDenied("Faqat administrator yoki o‘qituvchi imtihon biriktira oladi.")
         student = serializer.validated_data["student"]
+        exam = serializer.validated_data["exam"]
+        if not is_enabled_diagnostic_exam(exam):
+            raise ValidationError("Hozircha faqat English diagnostik testini biriktirish mumkin.")
         classroom = serializer.validated_data.get("classroom")
         if user.role == User.Role.TEACHER and not teacher_can_manage_assignment(user, student, classroom):
             raise PermissionDenied("O‘qituvchi faqat o‘z sinfidagi o‘quvchiga imtihon biriktira oladi.")
-        delivery_mode = serializer.validated_data.get("delivery_mode", ExamAssignment.DeliveryMode.SELF)
         serializer.save(
             assigned_by=user,
-            administered_by=user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None,
+            delivery_mode=ExamAssignment.DeliveryMode.SELF,
+            administered_by=None,
         )
 
     def perform_update(self, serializer):
@@ -103,6 +110,8 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, pk=None):
         assignment = self.get_object()
+        if not is_enabled_diagnostic_exam(assignment.exam):
+            raise ValidationError("Hozircha faqat English diagnostik testi faol.")
         if not can_operate_exam(request.user, assignment):
             raise PermissionDenied("Bu imtihonni boshlash huquqiga ega emassiz.")
         if not assignment.is_active:
@@ -128,6 +137,11 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = ExamAttempt.objects.select_related(
             "assignment__student", "assignment__exam", "started_by", "submitted_by",
         ).prefetch_related("answers__selected_option", "answers__exam_question__question")
+        queryset = queryset.filter(
+            assignment__exam_id__in=enabled_diagnostic_exams(
+                Exam.objects.all()
+            ).values("id")
+        )
         if user.is_superuser or user.role == User.Role.ADMIN:
             return queryset
         if user.role == User.Role.STUDENT:
@@ -314,6 +328,8 @@ class DiagnosticReportViewSet(viewsets.ReadOnlyModelViewSet):
         self._require_admin()
         report = self.get_object()
         previous_assignment = report.attempt.assignment
+        if not is_enabled_diagnostic_exam(previous_assignment.exam):
+            raise ValidationError("Hozircha faqat English diagnostik testini qayta tayinlash mumkin.")
         ExamAssignment.objects.filter(
             exam=previous_assignment.exam,
             student=previous_assignment.student,
@@ -330,13 +346,8 @@ class DiagnosticReportViewSet(viewsets.ReadOnlyModelViewSet):
             due_at=due_at,
             is_active=True,
             assigned_by=request.user,
-            delivery_mode=request.data.get("delivery_mode", previous_assignment.delivery_mode),
-            administered_by=(
-                request.user
-                if request.data.get("delivery_mode", previous_assignment.delivery_mode)
-                == ExamAssignment.DeliveryMode.ADMINISTERED
-                else None
-            ),
+            delivery_mode=ExamAssignment.DeliveryMode.SELF,
+            administered_by=None,
         )
         profile = getattr(previous_assignment.student, "student_profile", None)
         if profile:
@@ -389,6 +400,9 @@ class DashboardView(APIView):
         user = request.user
         reports = DiagnosticReport.objects.all()
         assignments = ExamAssignment.objects.all()
+        assignments = assignments.filter(
+            exam_id__in=enabled_diagnostic_exams(Exam.objects.all()).values("id")
+        )
         ids = student_ids_for(user)
         if not (user.is_superuser or user.role == User.Role.ADMIN):
             reports = reports.filter(attempt__assignment__student_id__in=ids)

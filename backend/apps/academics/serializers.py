@@ -55,7 +55,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ["id", "code", "subject", "subject_title", "topic", "topic_title", "skills", "skill_details", "prompt", "explanation", "difficulty", "min_grade", "max_grade", "default_points", "image_url", "is_active", "options", "created_at", "updated_at"]
+        fields = ["id", "code", "subject", "subject_title", "topic", "topic_title", "skills", "skill_details", "context", "prompt", "explanation", "difficulty", "min_grade", "max_grade", "default_points", "image_url", "is_active", "options", "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]
 
     def get_fields(self):

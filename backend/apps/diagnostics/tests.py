@@ -20,6 +20,7 @@ class BilimYolApiTests(APITestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("seed_demo", verbosity=0)
+        call_command("seed_english_diagnostics", verbosity=0)
 
     def authenticate(self, username="student", password="student123"):
         token = self.client.post("/api/auth/token/", {"username": username, "password": password}, format="json")
@@ -62,16 +63,16 @@ class BilimYolApiTests(APITestCase):
             self.assertEqual(dashboard.data["role"], role)
 
     def test_every_demo_test_subject_is_normalized_to_100(self):
-        for exam in Exam.objects.all():
+        for exam in Exam.objects.filter(title__contains="IQ / Math / English"):
             self.assertEqual(float(exam.max_score), 100)
             self.assertEqual(sum(float(item.weight_percent) for item in exam.subject_weights.all()), 100)
             self.assertTrue(all(float(item.max_score) == 100 for item in exam.subject_weights.all()))
             self.assertSetEqual(set(exam.subject_weights.values_list("subject__slug", flat=True)), {"iq", "math", "english"})
 
-    def test_admin_can_assign_grade_test_to_whole_class(self):
+    def test_admin_can_assign_english_test_to_whole_class(self):
         self.authenticate("admin", "admin12345")
         classroom = Classroom.objects.get(name="8-A")
-        exam = Exam.objects.get(title="8-A · IQ / Math / English Mock #1")
+        exam = Exam.objects.get(title="RBIS English Placement - 8-sinf")
         response = self.client.post(f"/api/exams/{exam.id}/assign-class/", {"classroom": classroom.id}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["students"], 1)
@@ -84,6 +85,7 @@ class BilimYolApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["classroom"]["grade"], 6)
         self.assertEqual(len(response.data["tests"]), 1)
+        self.assertEqual(response.data["tests"][0]["title"], "RBIS English Placement - 6-sinf")
 
     def test_parent_sees_dream_university_progress_from_mock_and_certificates(self):
         self.authenticate("parent", "parent123")
@@ -170,7 +172,14 @@ class BilimYolApiTests(APITestCase):
         self.assertFalse(ParentStudent.objects.filter(parent=parent, student=outsider).exists())
 
     def test_student_cannot_update_or_delete_assignment(self):
-        assignment = ExamAssignment.objects.get(student__username="student")
+        exam = Exam.objects.get(title="RBIS English Placement - 8-sinf")
+        student = User.objects.get(username="student")
+        assignment = ExamAssignment.objects.create(
+            exam=exam,
+            student=student,
+            assigned_by=User.objects.get(username="admin"),
+            is_active=True,
+        )
         self.authenticate()
         update_response = self.client.patch(
             f"/api/assignments/{assignment.id}/",
@@ -190,7 +199,7 @@ class BilimYolApiTests(APITestCase):
             full_name="Outside Class",
             role=User.Role.STUDENT,
         )
-        exam = Exam.objects.first()
+        exam = Exam.objects.get(title="RBIS English Placement - 8-sinf")
         self.authenticate("teacher", "teacher123")
         response = self.client.post(
             "/api/assignments/",
@@ -201,6 +210,14 @@ class BilimYolApiTests(APITestCase):
         self.assertFalse(ExamAssignment.objects.filter(exam=exam, student=outsider).exists())
 
     def test_student_exam_payload_hides_answer_explanation(self):
+        exam = Exam.objects.get(title="RBIS English Placement - 8-sinf")
+        student = User.objects.get(username="student")
+        ExamAssignment.objects.create(
+            exam=exam,
+            student=student,
+            assigned_by=User.objects.get(username="admin"),
+            is_active=True,
+        )
         self.authenticate()
         response = self.client.get("/api/assignments/")
         self.assertEqual(response.status_code, 200)
@@ -237,7 +254,25 @@ class BilimYolApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_answered_exam_question_edit_returns_400_instead_of_500(self):
-        exam = DiagnosticReport.objects.get().attempt.assignment.exam
+        exam = Exam.objects.get(title="RBIS English Placement - 8-sinf")
+        student = User.objects.get(username="student")
+        assignment = ExamAssignment.objects.create(
+            exam=exam,
+            student=student,
+            assigned_by=User.objects.get(username="admin"),
+            is_active=True,
+        )
+        attempt = ExamAttempt.objects.create(
+            assignment=assignment,
+            expires_at=timezone.now(),
+        )
+        exam_question = exam.exam_questions.first()
+        from .models import StudentAnswer
+        StudentAnswer.objects.create(
+            attempt=attempt,
+            exam_question=exam_question,
+            selected_option=exam_question.question.options.first(),
+        )
         self.authenticate("admin", "admin12345")
         questions = [
             {"question": item.question_id, "points": str(item.points), "order": item.order}
@@ -268,29 +303,23 @@ class BilimYolApiTests(APITestCase):
         goal.refresh_from_db()
         self.assertNotEqual(goal.student_id, outsider.id)
 
-    def test_admin_report_detail_contains_saved_answers_and_analysis(self):
+    def test_admin_report_detail_omits_question_by_question_correctness(self):
         report = DiagnosticReport.objects.get()
         self.authenticate("admin", "admin12345")
         response = self.client.get(f"/api/reports/{report.id}/")
         self.assertEqual(response.status_code, 200)
         self.assertGreater(response.data["answer_summary"]["total"], 0)
-        self.assertEqual(
-            response.data["answer_summary"]["total"],
-            len(response.data["question_review"]),
-        )
-        self.assertIn("selected_option", response.data["question_review"][0])
-        self.assertIn("correct_option", response.data["question_review"][0])
+        self.assertNotIn("question_review", response.data)
         self.assertIn("attempt_detail", response.data)
         self.assertIn("strengths", response.data)
         self.assertIn("weaknesses", response.data)
 
-    def test_student_report_detail_does_not_expose_answer_key(self):
+    def test_student_report_detail_omits_question_review(self):
         report = DiagnosticReport.objects.get()
         self.authenticate()
         response = self.client.get(f"/api/reports/{report.id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("correct_option", response.data["question_review"][0])
-        self.assertNotIn("explanation", response.data["question_review"][0])
+        self.assertNotIn("question_review", response.data)
 
     def test_admin_can_filter_reports_by_grade_subject_and_score(self):
         self.authenticate("admin", "admin12345")
@@ -301,22 +330,14 @@ class BilimYolApiTests(APITestCase):
         self.assertEqual(wrong_grade.status_code, 200)
         self.assertEqual(wrong_grade.data["count"], 0)
 
-    def test_admin_reassigns_without_deleting_historical_report(self):
+    def test_admin_cannot_reassign_dormant_math_iq_exam(self):
         report = DiagnosticReport.objects.get()
         old_assignment = report.attempt.assignment
         self.authenticate("admin", "admin12345")
         response = self.client.post(f"/api/reports/{report.id}/reassign/", {}, format="json")
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 400)
         old_assignment.refresh_from_db()
         self.assertFalse(old_assignment.is_active)
-        self.assertTrue(
-            ExamAssignment.objects.filter(
-                id=response.data["id"],
-                exam=old_assignment.exam,
-                student=old_assignment.student,
-                is_active=True,
-            ).exists()
-        )
         self.assertTrue(DiagnosticReport.objects.filter(id=report.id).exists())
 
     def test_admin_can_compare_two_attempts_for_same_student(self):
@@ -365,6 +386,7 @@ class AdministeredProfilingFlowTests(APITestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("seed_demo", verbosity=0)
+        call_command("seed_english_diagnostics", verbosity=0)
 
     def setUp(self):
         token = self.client.post(
@@ -449,14 +471,45 @@ class AdministeredProfilingFlowTests(APITestCase):
         recommendation = self.client.get(f"/api/student-profiles/{profile_id}/recommend-tests/")
         self.assertEqual(recommendation.status_code, 200)
         self.assertGreater(len(recommendation.data["tests"]), 0)
+        self.assertTrue(all(
+            {
+                question["question_detail"]["subject_title"]
+                for question in item["exam_questions"]
+            } == {"English"}
+            for item in recommendation.data["tests"]
+        ))
         exam = recommendation.data["tests"][0]
 
+        temporary_password = "English2026"
         assignment = self.client.post(
             f"/api/exams/{exam['id']}/assign-student/",
-            {"student": student_id, "classroom": None, "delivery_mode": "administered"},
+            {
+                "student": student_id,
+                "classroom": None,
+                "delivery_mode": "self",
+                "temporary_password": temporary_password,
+            },
             format="json",
         )
         self.assertEqual(assignment.status_code, 200)
+        self.assertEqual(assignment.data["delivery_mode"], "self")
+        self.assertEqual(assignment.data["credentials"]["username"], "new-student")
+        self.assertEqual(assignment.data["credentials"]["temporary_password"], temporary_password)
+        admin_start = self.client.post(
+            f"/api/assignments/{assignment.data['assignment']}/start/",
+            {},
+            format="json",
+        )
+        self.assertEqual(admin_start.status_code, 403)
+
+        self.client.credentials()
+        token = self.client.post(
+            "/api/auth/token/",
+            {"username": "new-student", "password": temporary_password},
+            format="json",
+        )
+        self.assertEqual(token.status_code, 200)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.data['access']}")
         started = self.client.post(f"/api/assignments/{assignment.data['assignment']}/start/", {}, format="json")
         self.assertEqual(started.status_code, 201)
         attempt_id = started.data["id"]
@@ -480,3 +533,9 @@ class AdministeredProfilingFlowTests(APITestCase):
         self.assertEqual(report.data["roadmap"]["weekly_hours"], 9)
         self.assertEqual(report.data["roadmap"]["primary_goal_title"], "Prezident maktabiga kirish")
         self.assertEqual(report.data["roadmap"]["generation_context"]["grade"], 8)
+        self.assertFalse(
+            ExamAssignment.objects.get(id=assignment.data["assignment"]).is_active
+        )
+        own_reports = self.client.get("/api/reports/")
+        self.assertEqual(own_reports.status_code, 200)
+        self.assertEqual(own_reports.data["results"][0]["id"], report.data["id"])

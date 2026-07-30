@@ -8,7 +8,6 @@ import {
   Clock3,
   Download,
   Eye,
-  FileQuestion,
   History,
   LoaderCircle,
   RefreshCcw,
@@ -50,12 +49,6 @@ function score(value: string | number) {
   return Math.round(Number(value) || 0);
 }
 
-function difficultyLabel(value: string) {
-  if (value === "basic") return "Boshlang‘ich";
-  if (value === "high") return "Yuqori";
-  return "O‘rta";
-}
-
 export function AdminDiagnosticDetail({
   report,
   onBack,
@@ -69,12 +62,7 @@ export function AdminDiagnosticDetail({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const summary = report.answer_summary ?? {
-    total: report.question_review.length,
-    correct: report.question_review.filter((item) => item.is_correct).length,
-    incorrect: report.question_review.filter((item) => item.is_answered && !item.is_correct).length,
-    unanswered: report.question_review.filter((item) => !item.is_answered).length,
-  };
+  const summary = report.answer_summary ?? { total: 0, correct: 0, incorrect: 0, unanswered: 0 };
 
   const breakdownRows = useMemo(() => [
     ...(report.topic_results ?? []).map((item) => ({
@@ -161,7 +149,7 @@ export function AdminDiagnosticDetail({
         <article className="portal-card"><span><BarChart3 size={19} /></span><small>Umumiy ball</small><strong>{score(report.overall_score)}/100</strong></article>
         <article className="portal-card success"><span><CheckCircle2 size={19} /></span><small>To‘g‘ri</small><strong>{summary.correct}</strong></article>
         <article className="portal-card danger"><span><XCircle size={19} /></span><small>Noto‘g‘ri</small><strong>{summary.incorrect}</strong></article>
-        <article className="portal-card neutral"><span><FileQuestion size={19} /></span><small>Javobsiz</small><strong>{summary.unanswered}</strong></article>
+        <article className="portal-card neutral"><span><Target size={19} /></span><small>Javobsiz</small><strong>{summary.unanswered}</strong></article>
       </div>
 
       <div className="admin-detail-two-column">
@@ -194,30 +182,6 @@ export function AdminDiagnosticDetail({
             <thead><tr><th>Turi</th><th>Nomi</th><th>Savollar</th><th>Ishonchlilik</th><th>Natija</th></tr></thead>
             <tbody>{breakdownRows.map((item) => <tr key={item.id}><td><span className="role-label">{item.kind}</span></td><td><strong>{item.title}</strong></td><td>{item.questions}</td><td>{item.confidence}</td><td><strong>{item.score}/100</strong></td></tr>)}</tbody>
           </table>
-        </div>
-      </article>
-
-      <article className="portal-card admin-detail-section">
-        <div className="portal-card-head"><div><span>Javoblar tahlili</span><h2>Har bir savol bo‘yicha</h2></div><em>{summary.total} savol</em></div>
-        <div className="admin-question-review-list">
-          {report.question_review.map((item, index) => (
-            <details key={item.exam_question_id}>
-              <summary>
-                <i className={item.is_correct ? "correct" : item.is_answered ? "incorrect" : "unanswered"}>{index + 1}</i>
-                <div><strong>{item.code} · {item.topic.title}</strong><small>{item.subject.title} · {difficultyLabel(item.difficulty)} · {item.skills.map((skill) => skill.title).join(", ") || "Skill belgilanmagan"}</small></div>
-                <em>{item.is_correct ? "To‘g‘ri" : item.is_answered ? "Noto‘g‘ri" : "Javobsiz"}</em>
-              </summary>
-              <div className="admin-question-review-body">
-                {item.context && <blockquote className="admin-question-context">{item.context}</blockquote>}
-                <p>{item.prompt}</p>
-                <div>
-                  <span><small>Student javobi</small><strong>{item.selected_option ? `${item.selected_option.label}. ${item.selected_option.text}` : "Javob berilmagan"}</strong></span>
-                  <span><small>To‘g‘ri javob</small><strong>{item.correct_option ? `${item.correct_option.label}. ${item.correct_option.text}` : "—"}</strong></span>
-                </div>
-                {item.explanation && <blockquote><strong>Izoh:</strong> {item.explanation}</blockquote>}
-              </div>
-            </details>
-          ))}
         </div>
       </article>
 

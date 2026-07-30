@@ -89,6 +89,11 @@ class ExamAttempt(models.Model):
     earned_points = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     overall_score = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     is_ready = models.BooleanField(default=False)
+    question_order = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Urinish boshlanganda saqlangan ExamQuestion ID tartibi.",
+    )
 
     class Meta:
         ordering = ["-started_at"]

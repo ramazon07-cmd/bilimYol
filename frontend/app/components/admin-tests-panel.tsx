@@ -2,12 +2,12 @@
 
 import {
   CheckCircle2,
+  ClipboardCopy,
   ClipboardList,
-  Clock3,
   Eye,
   GraduationCap,
+  KeyRound,
   LoaderCircle,
-  Play,
   RotateCcw,
   Save,
   Search,
@@ -42,12 +42,10 @@ type AssignmentResponse = {
   created: boolean;
   student: string;
   delivery_mode: string;
-};
-
-type AttemptResponse = {
-  id: number;
-  remaining_seconds: number;
-  question_order: number[];
+  credentials: {
+    username: string;
+    temporary_password: string;
+  };
 };
 
 const statusLabel: Record<string, string> = {
@@ -75,11 +73,9 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(initialSelectedProfileId);
   const [recommendedExams, setRecommendedExams] = useState<Exam[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
-  const [activeExam, setActiveExam] = useState<Exam | null>(null);
   const [assignmentId, setAssignmentId] = useState<number | null>(null);
-  const [attemptId, setAttemptId] = useState<number | null>(null);
-  const [questionOrder, setQuestionOrder] = useState<number[]>([]);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [credentials, setCredentials] = useState<AssignmentResponse["credentials"] | null>(null);
   const [history, setHistory] = useState<LiveDiagnosticReport[]>([]);
   const [historyError, setHistoryError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -87,7 +83,6 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
   const [selectedReport, setSelectedReport] = useState<LiveDiagnosticReportDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [savingQuestion, setSavingQuestion] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -156,30 +151,13 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
     () => recommendedExams.find((item) => item.id === selectedExamId) ?? null,
     [recommendedExams, selectedExamId],
   );
-  const orderedExamQuestions = useMemo(() => {
-    if (!activeExam) return [];
-    if (questionOrder.length === 0) return activeExam.exam_questions;
-    const questionById = new Map(activeExam.exam_questions.map((item) => [item.id, item]));
-    const ordered = questionOrder
-      .map((itemId) => questionById.get(itemId))
-      .filter((item): item is Exam["exam_questions"][number] => Boolean(item));
-    const orderedIds = new Set(ordered.map((item) => item.id));
-    return [
-      ...ordered,
-      ...activeExam.exam_questions.filter((item) => !orderedIds.has(item.id)),
-    ];
-  }, [activeExam, questionOrder]);
-  const answeredCount = Object.keys(answers).length;
-  const totalQuestions = orderedExamQuestions.length;
 
   const resetFlow = () => {
     setRecommendedExams([]);
     setSelectedExamId(null);
-    setActiveExam(null);
     setAssignmentId(null);
-    setAttemptId(null);
-    setQuestionOrder([]);
-    setAnswers({});
+    setTemporaryPassword("");
+    setCredentials(null);
     setError("");
     setNotice("");
   };
@@ -214,7 +192,7 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
       setRecommendedExams(tests);
       setSelectedExamId(tests[0]?.id ?? null);
       if (tests.length === 0) {
-        setError(`${selectedProfile?.grade ?? "Bu"}-sinf uchun faol diagnostik test hali yaratilmagan. Backendda sync_grade_tests buyrug‘ini ishga tushiring.`);
+        setError(`${selectedProfile?.grade ?? "Bu"}-sinf uchun faol English testi hali yaratilmagan. Backendda seed_english_diagnostics buyrug‘ini ishga tushiring.`);
       } else {
         setNotice(`${tests.length} ta mos test topildi.`);
       }
@@ -239,82 +217,17 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
         body: JSON.stringify({
           student: selectedProfile.student.id,
           classroom: null,
-          delivery_mode: "administered",
+          delivery_mode: "self",
+          temporary_password: temporaryPassword.trim() || undefined,
         }),
       });
       setAssignmentId(assignment.assignment);
-      setActiveExam(selectedExam);
+      setCredentials(assignment.credentials);
       setError("");
-      setNotice(`${selectedProfile.student.full_name} uchun test biriktirildi.`);
+      setNotice(`${selectedProfile.student.full_name} uchun English testi biriktirildi.`);
     } catch (requestError) {
       setNotice("");
       setError(requestError instanceof Error ? requestError.message : "Testni biriktirishda xatolik.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startExam = async () => {
-    if (!assignmentId || !activeExam) return;
-    setLoading(true);
-    setError("");
-    try {
-      const attempt = await apiRequest<AttemptResponse>(`/assignments/${assignmentId}/start/`, { method: "POST" });
-      setAttemptId(attempt.id);
-      setQuestionOrder(attempt.question_order);
-      setAnswers({});
-      setError("");
-      setNotice("Imtihon boshlandi. Har bir tanlov backendga darhol saqlanadi.");
-      window.dispatchEvent(new Event("bilimyol-exam-start"));
-    } catch (requestError) {
-      setNotice("");
-      setError(requestError instanceof Error ? requestError.message : "Testni boshlashda xatolik.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveAnswer = async (examQuestionId: number, optionId: number) => {
-    if (!attemptId) return;
-    setAnswers((current) => ({ ...current, [examQuestionId]: optionId }));
-    setSavingQuestion(examQuestionId);
-    setError("");
-    try {
-      await apiRequest(`/attempts/${attemptId}/answer/`, {
-        method: "POST",
-        body: JSON.stringify({
-          exam_question: examQuestionId,
-          selected_option: optionId,
-          is_flagged: false,
-        }),
-      });
-    } catch (requestError) {
-      setAnswers((current) => {
-        const next = { ...current };
-        delete next[examQuestionId];
-        return next;
-      });
-      setError(requestError instanceof Error ? requestError.message : "Javob saqlanmadi.");
-    } finally {
-      setSavingQuestion(null);
-    }
-  };
-
-  const submitExam = async () => {
-    if (!attemptId || !activeExam) return;
-    if (answeredCount !== totalQuestions) {
-      setError(`Yana ${totalQuestions - answeredCount} ta savolga javob berilmagan.`);
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const report = await apiRequest<LiveDiagnosticReport>(`/attempts/${attemptId}/submit/`, { method: "POST" });
-      setHistory((current) => [report, ...current.filter((item) => item.id !== report.id)].slice(0, 10));
-      onComplete(report);
-    } catch (requestError) {
-      setNotice("");
-      setError(requestError instanceof Error ? requestError.message : "Imtihonni yakunlashda xatolik.");
     } finally {
       setLoading(false);
     }
@@ -347,12 +260,12 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
       <div className="admin-exam-heading">
         <div>
           <span>Qabul diagnostikasi</span>
-          <h1>Admin bilan test o‘tkazish</h1>
-          <p>Profil → tavsiya → biriktirish → javoblar → hisobot → individual roadmap.</p>
+          <h1>English testini biriktirish</h1>
+          <p>Admin testni biriktiradi va credential beradi. O‘quvchi o‘z kabinetida mustaqil ishlaydi.</p>
         </div>
-        {(assignmentId || attemptId) && (
+        {assignmentId && (
           <button className="portal-secondary" onClick={resetFlow}>
-            <RotateCcw size={16} /> Yangidan boshlash
+            <RotateCcw size={16} /> Boshqa test biriktirish
           </button>
         )}
       </div>
@@ -360,8 +273,7 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
       {error && <div className="admin-flow-message error"><XCircle size={17} />{error}</div>}
       {notice && <div className="admin-flow-message success"><CheckCircle2 size={17} />{notice}</div>}
 
-      {!attemptId && (
-        <div className="admin-exam-setup-grid">
+      <div className="admin-exam-setup-grid">
           <article className="portal-card admin-exam-setup">
             <div className="admin-flow-step"><span>1</span><div><strong>O‘quvchini tanlang</strong><small>Suhbat va kategoriya profili tayyor bo‘lishi kerak.</small></div></div>
             <label className="admin-field">
@@ -400,7 +312,7 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
           </article>
 
           <article className="portal-card admin-exam-setup">
-            <div className="admin-flow-step"><span>2</span><div><strong>Testni tanlang</strong><small>Grade va kategoriyalar bo‘yicha backend tavsiyasi.</small></div></div>
+            <div className="admin-flow-step"><span>2</span><div><strong>English testini tanlang</strong><small>Sinfga mos faol English diagnostikasi.</small></div></div>
             {recommendedExams.length === 0 ? (
               <div className="admin-exam-placeholder"><ClipboardList size={25} /><p>Avval o‘quvchi uchun tavsiyalarni oling.</p></div>
             ) : (
@@ -419,77 +331,47 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
                   ))}
                 </div>
                 {!assignmentId ? (
+                  <>
+                    <label className="admin-field">
+                      <span>Vaqtinchalik parol</span>
+                      <input
+                        type="text"
+                        minLength={8}
+                        value={temporaryPassword}
+                        onChange={(event) => setTemporaryPassword(event.target.value)}
+                        placeholder="Bo‘sh qoldirilsa avtomatik yaratiladi"
+                      />
+                      <small>Kamida 8 belgi. Parol faqat biriktirishdan keyin bir marta ko‘rsatiladi.</small>
+                    </label>
                   <button className="portal-primary" onClick={assignExam} disabled={loading || !selectedExamId}>
                     {loading ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}
                     Testni biriktirish
                   </button>
+                  </>
                 ) : (
-                  <button className="portal-primary" onClick={startExam} disabled={loading}>
-                    {loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
-                    Testni boshlash
-                  </button>
+                  credentials && (
+                    <div className="admin-credential-card">
+                      <div><KeyRound size={20} /><span><strong>O‘quvchiga beriladigan ma’lumot</strong><small>Parol backendda ochiq saqlanmaydi.</small></span></div>
+                      <label><span>Login</span><strong>{credentials.username}</strong></label>
+                      <label><span>Vaqtinchalik parol</span><strong>{credentials.temporary_password}</strong></label>
+                      <button
+                        type="button"
+                        className="portal-secondary"
+                        onClick={() => void navigator.clipboard.writeText(
+                          `Login: ${credentials.username}\nParol: ${credentials.temporary_password}`,
+                        )}
+                      >
+                        <ClipboardCopy size={16} /> Login va parolni nusxalash
+                      </button>
+                    </div>
+                  )
                 )}
               </>
             )}
           </article>
         </div>
-      )}
 
-      {attemptId && activeExam && (
-        <section className="admin-live-exam">
-          <div className="admin-live-exam-head portal-card">
-            <div><span>Test jarayoni</span><h2>{activeExam.title}</h2><p>{selectedProfile?.student.full_name}</p></div>
-            <div className="exam-progress-box">
-              <Clock3 size={18} />
-              <strong>{answeredCount}/{totalQuestions}</strong>
-              <small>javob saqlandi</small>
-            </div>
-          </div>
-
-          <div className="admin-question-stack">
-            {orderedExamQuestions.map((examQuestion, index) => {
-              const question = examQuestion.question_detail;
-              return (
-                <article className="portal-card mini-question-card" key={examQuestion.id}>
-                  <div className="mini-question-head">
-                    <span>{index + 1}</span>
-                    <div>
-                      <small>{question.subject_title}</small>
-                      {question.context && <blockquote className="mini-question-context">{question.context}</blockquote>}
-                      <h3>{question.prompt}</h3>
-                    </div>
-                    {savingQuestion === examQuestion.id && <LoaderCircle className="spin" size={18} />}
-                  </div>
-                  <div className="mini-question-options">
-                    {question.options.map((option) => (
-                      <button
-                        type="button"
-                        key={option.id}
-                        className={answers[examQuestion.id] === option.id ? "selected" : ""}
-                        onClick={() => saveAnswer(examQuestion.id, option.id)}
-                        disabled={savingQuestion === examQuestion.id}
-                      >
-                        <i>{option.label}</i><span>{option.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="admin-submit-bar portal-card">
-            <div><strong>{answeredCount}/{totalQuestions} savol</strong><p>Barcha javoblar backendda saqlanadi.</p></div>
-            <button className="portal-primary" onClick={submitExam} disabled={loading || answeredCount !== totalQuestions}>
-              {loading ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}
-              Imtihonni yakunlash
-            </button>
-          </div>
-        </section>
-      )}
-
-      {!attemptId && (
-        <article className="portal-card admin-exam-history">
+      <article className="portal-card admin-exam-history">
           <div className="portal-card-head"><div><span>Diagnostika tarixi</span><h2>Backendda saqlangan natijalar</h2></div><em>{history.length} ta natija</em></div>
           <form
             className="admin-diagnostic-filters"
@@ -531,8 +413,7 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
               </tbody>
             </table>
           </div>
-        </article>
-      )}
+      </article>
     </div>
   );
 }

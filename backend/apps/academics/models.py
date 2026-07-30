@@ -59,6 +59,10 @@ class Question(models.Model):
     topic = models.ForeignKey(Topic, on_delete=models.PROTECT, related_name="questions")
     skills = models.ManyToManyField(Skill, related_name="questions")
     code = models.CharField(max_length=40, unique=True)
+    context = models.TextField(
+        blank=True,
+        help_text="Reading passage, scenario yoki savolga tegishli umumiy matn.",
+    )
     prompt = models.TextField()
     explanation = models.TextField(blank=True)
     difficulty = models.CharField(max_length=12, choices=Difficulty.choices, default=Difficulty.MEDIUM)
