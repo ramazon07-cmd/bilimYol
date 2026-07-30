@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BilimYo‘l — Diagnostik hisobot",
+  title: "RBIS — Academic Diagnostic",
   description:
-    "Prezident maktabiga tayyorgarlik uchun chuqur diagnostika va shaxsiy o‘quv yo‘li.",
+    "RBIS o‘quvchilari uchun diagnostika, natijalar va shaxsiy o‘quv yo‘li.",
   other: {
     "codex-preview": "development",
   },

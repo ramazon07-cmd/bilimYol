@@ -1,6 +1,22 @@
-# BilimYo‘l — diagnostik ta’lim platformasi
+# RBIS Academic Diagnostic
 
 Prezident maktabiga tayyorgarlik uchun sinfga mos testlarni boshqaradigan, natijani fan, mavzu va ko‘nikma bo‘yicha tahlil qiladigan, o‘quvchiga shaxsiy roadmap hamda Dream University progressini ko‘rsatadigan full-stack MVP.
+
+## RBIS dizayn tizimi
+
+Login, admin, student, teacher, parent va PDF/chop etish ko‘rinishlari bitta
+RBIS komponentlar tizimidan foydalanadi. Asosiy tokenlar
+`frontend/app/lib/rbis-theme.ts`da, umumiy UI standartlari esa
+`frontend/app/globals.css`da saqlanadi.
+
+```bash
+cd frontend
+npm run lint:theme
+```
+
+Bu audit barcha 11 ta RBIS rang tokeni mavjudligini, eski ko‘k/navy asosiy
+ranglar qaytib kelmaganini va sidebar, tugma, card, jadval, modal hamda print
+standartlari saqlanganini tekshiradi.
 
 ## Texnologiyalar
 

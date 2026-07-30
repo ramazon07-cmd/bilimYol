@@ -124,9 +124,9 @@ class Command(BaseCommand):
         )
 
         subject_specs = [
-            ("math", "Matematika", "#c8564e"),
-            ("english", "Ingliz tili", "#d99a16"),
-            ("iq", "IQ", "#4568a8"),
+            ("math", "Matematika", "#65001F"),
+            ("english", "Ingliz tili", "#7A1233"),
+            ("iq", "IQ", "#450417"),
         ]
         subjects = {}
         for order, (slug, title, color) in enumerate(subject_specs, 1):

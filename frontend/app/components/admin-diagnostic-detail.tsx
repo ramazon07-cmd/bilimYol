@@ -22,6 +22,7 @@ import {
   type LiveDiagnosticReportDetail,
   type LiveReportComparison,
 } from "../lib/api";
+import { rbisChartColor } from "../lib/rbis-theme";
 
 type Props = {
   report: LiveDiagnosticReportDetail;
@@ -156,9 +157,9 @@ export function AdminDiagnosticDetail({
         <article className="portal-card admin-detail-section">
           <div className="portal-card-head"><div><span>Fanlar bo‘yicha</span><h2>Natijalar</h2></div><em>{report.subject_results.length} fan</em></div>
           <div className="admin-subject-result-list">
-            {report.subject_results.map((item) => (
+            {report.subject_results.map((item, index) => (
               <div key={item.subject.slug}>
-                <span style={{ background: item.subject.color }} />
+                <span style={{ background: rbisChartColor(item.subject.slug, index) }} />
                 <div><strong>{item.subject.title}</strong><small>{score(item.earned_points ?? 0)} / {score(item.possible_points ?? 0)} ball</small></div>
                 <em>{score(item.score)}/100</em>
               </div>

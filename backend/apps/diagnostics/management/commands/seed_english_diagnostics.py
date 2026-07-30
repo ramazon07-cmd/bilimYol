@@ -43,7 +43,7 @@ class Command(BaseCommand):
             slug="english",
             defaults={
                 "title": "English",
-                "color": "#65001F",
+                "color": "#7A1233",
                 "order": 2,
                 "is_active": True,
             },

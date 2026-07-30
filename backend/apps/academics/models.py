@@ -5,7 +5,7 @@ from django.db import models
 class Subject(models.Model):
     slug = models.SlugField(unique=True)
     title = models.CharField(max_length=120)
-    color = models.CharField(max_length=20, default="#071b3a")
+    color = models.CharField(max_length=20, default="#65001F")
     order = models.PositiveSmallIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 

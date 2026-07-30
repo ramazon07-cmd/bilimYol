@@ -24,6 +24,7 @@ import {
   type Category,
   type StudentProfile,
 } from "../../lib/profiling-api";
+import { rbisChartColor } from "../../lib/rbis-theme";
 
 type Props = {
   onClose: () => void;
@@ -376,10 +377,10 @@ export function StudentOnboardingWizard({ onClose, onCreated }: Props) {
                 </div>
               </div>
               <div className="category-checkbox-grid">
-                {categories.map((category) => (
+                {categories.map((category, index) => (
                   <label key={category.id} className={selectedCategories.includes(category.id) ? "selected" : ""}>
                     <input type="checkbox" checked={selectedCategories.includes(category.id)} onChange={() => setSelectedCategories((current) => current.includes(category.id) ? current.filter((id) => id !== category.id) : [...current, category.id])} />
-                    <span style={{ background: category.color }} />
+                    <span style={{ background: rbisChartColor(category.code, index) }} />
                     <div><strong>{category.title}</strong><small>{category.kind.replaceAll("_", " ")}</small></div>
                     {selectedCategories.includes(category.id) && <CheckCircle2 size={19} />}
                   </label>

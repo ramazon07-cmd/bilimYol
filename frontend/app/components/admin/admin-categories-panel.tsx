@@ -3,6 +3,7 @@
 import { Layers3, Plus, Tags } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createCategory, getCategories, type Category } from "../../lib/profiling-api";
+import { RBIS_COLORS, rbisChartColor } from "../../lib/rbis-theme";
 
 const kindLabels: Record<string, string> = {
   direction: "Ta’lim yo‘nalishi",
@@ -42,7 +43,7 @@ export function AdminCategoriesPanel() {
         kind,
         subject_slug: subjectSlug,
         description: "",
-        color: "#071b3a",
+        color: RBIS_COLORS.primary,
         is_active: true,
         order: categories.length + 1,
       });
@@ -93,9 +94,9 @@ export function AdminCategoriesPanel() {
             <strong>{categories.length} ta</strong>
           </div>
           <div className="category-list-grid">
-            {categories.map((category) => (
+            {categories.map((category, index) => (
               <article className="portal-card category-list-card" key={category.id}>
-                <span style={{ background: category.color }}><Tags size={19} /></span>
+                <span style={{ background: rbisChartColor(category.code, index) }}><Tags size={19} /></span>
                 <div>
                   <strong>{category.title}</strong>
                   <small>{kindLabels[category.kind] ?? category.kind}{category.subject_slug ? ` · ${category.subject_slug}` : ""}</small>

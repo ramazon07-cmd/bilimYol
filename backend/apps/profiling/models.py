@@ -109,7 +109,7 @@ class Category(models.Model):
     description = models.TextField(blank=True)
     kind = models.CharField(max_length=30, choices=Kind.choices, db_index=True)
     subject_slug = models.CharField(max_length=50, blank=True)
-    color = models.CharField(max_length=20, default="#071b3a")
+    color = models.CharField(max_length=20, default="#65001F")
     is_active = models.BooleanField(default=True)
     order = models.PositiveSmallIntegerField(default=0)
 

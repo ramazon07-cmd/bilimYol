@@ -10,6 +10,7 @@
   "build": "next build",
   "start": "next start",
   "lint": "eslint . --ignore-pattern .next --ignore-pattern dist",
+  "lint:theme": "node scripts/check-rbis-theme.mjs",
   "test": "npm run build"
   },
   "dependencies": {

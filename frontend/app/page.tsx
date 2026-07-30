@@ -34,6 +34,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AdminWorkspace, ParentWorkspace, StudentWorkspace, TeacherWorkspace } from "./components/role-workspaces";
 import { UniversityJourney } from "./components/dream-university";
+import { RbisBrand } from "./components/rbis-brand";
 import {
   MINI_EXAM_STORAGE_KEY,
   MINI_EXAM_STUDENT_RESULTS_KEY,
@@ -54,6 +55,7 @@ import {
   type UserRole,
   type WorkspaceSession,
 } from "./lib/api";
+import { RBIS_COLORS, rbisChartColor } from "./lib/rbis-theme";
 
 type SubjectId = "overall" | "math" | "english" | "critical";
 type ReportTab = SubjectId | "university";
@@ -147,8 +149,8 @@ const subjects: Subject[] = [
     rank: "42 / 53",
     percentile: 23,
     potential: 10,
-    accent: "#c8564e",
-    pale: "#fbefec",
+    accent: RBIS_COLORS.primary,
+    pale: RBIS_COLORS.cream,
     icon: BarChart3,
     strong: ["Algebraik fikrlash"],
     weak: ["Konseptual tushunish", "Hisoblash aniqligi", "Mantiqiy mulohaza", "Modellashtirish"],
@@ -164,8 +166,8 @@ const subjects: Subject[] = [
     rank: "29 / 34",
     percentile: 38,
     potential: 62,
-    accent: "#d99a16",
-    pale: "#fff7df",
+    accent: RBIS_COLORS.hover,
+    pale: RBIS_COLORS.surface,
     icon: Languages,
     strong: ["Faktik o‘qish", "Grammatik aniqlik"],
     weak: ["Inferensial o‘qish", "Muallif pozitsiyasi"],
@@ -181,8 +183,8 @@ const subjects: Subject[] = [
     rank: "31 / 53",
     percentile: 41,
     potential: 60,
-    accent: "#4568a8",
-    pale: "#edf2fb",
+    accent: RBIS_COLORS.deep,
+    pale: RBIS_COLORS.cream,
     icon: BrainCircuit,
     strong: ["Tasniflash", "Vizual analogiya"],
     weak: ["Shartli mulohaza", "Dalilni baholash"],
@@ -242,11 +244,11 @@ const roadmapCopy: Record<Exclude<SubjectId, "overall">, { stages: { period: str
 };
 
 const levels = [
-  { label: "Sayoz", min: 0, max: 35, color: "#c94f45" },
-  { label: "Zaif", min: 35, max: 50, color: "#e48931" },
-  { label: "O‘rtacha", min: 50, max: 67, color: "#d4a719" },
-  { label: "Yaxshi", min: 67, max: 84, color: "#3f68b7" },
-  { label: "Juda yaxshi", min: 84, max: 100, color: "#3d9b66" },
+  { label: "Sayoz", min: 0, max: 35, color: RBIS_COLORS.error },
+  { label: "Zaif", min: 35, max: 50, color: RBIS_COLORS.hover },
+  { label: "O‘rtacha", min: 50, max: 67, color: RBIS_COLORS.warning },
+  { label: "Yaxshi", min: 67, max: 84, color: RBIS_COLORS.primary },
+  { label: "Juda yaxshi", min: 84, max: 100, color: RBIS_COLORS.success },
 ];
 
 
@@ -325,15 +327,6 @@ function buildMiniExamSubjects(result: MiniExamResult): Subject[] {
   });
 }
 
-function Logo({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={`brand ${compact ? "compact" : ""}`}>
-      <div className="brand-crest"><BookOpenCheck size={compact ? 19 : 23} /></div>
-      <div><strong>BilimYo‘l</strong><span>Diagnostic learning system</span></div>
-    </div>
-  );
-}
-
 const roleOptions: { id: UserRole; label: string; description: string; icon: LucideIcon }[] = [
   { id: "student", label: "O‘quvchi", description: "Test va shaxsiy roadmap", icon: UserRound },
   { id: "parent", label: "Ota-ona", description: "Farzand nazorati", icon: UsersRound },
@@ -385,7 +378,7 @@ function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
       <div className="login-orb orb-one" />
       <div className="login-orb orb-two" />
       <section className="login-wrap">
-        <Logo />
+        <RbisBrand />
         <div className="login-card">
           <div className="secure-badge"><ShieldCheck size={15} /> Himoyalangan platforma</div>
           <h1>Kabinetga kirish</h1>
@@ -489,7 +482,7 @@ function Overview({
       <section className="report-hero" id="report-top">
         <div className="hero-art hero-art-one">S</div><div className="hero-art hero-art-two">1</div>
         <div className="report-hero-content">
-          <div className="hero-brand"><Logo compact /><span /> <em>Biz ilmga sodiqmiz</em></div>
+          <div className="hero-brand"><RbisBrand inverse /><span /> <em>Biz ilmga sodiqmiz</em></div>
           <span className="hero-kicker">{miniResult ? "Administrator o‘tkazgan qabul mini-imtihoni" : englishOnly ? "English placement diagnostikasi" : "Prezident maktabiga kirish diagnostikasi"}</span>
           <h1>Umumiy diagnostik<br />xulosa</h1>
           <p>{englishOnly ? "English darajasi, mavzular va ko‘nikmalar — bir qarashda." : "IQ, matematika va ingliz tili — bir qarashda."}</p>
@@ -787,7 +780,7 @@ function ReportApp({
         score: Math.round(Number(live.score)),
         percentile: live.percentile,
         potential: live.potential,
-        accent: live.subject.color || template.accent,
+        accent: rbisChartColor(live.subject.slug),
         strong: skillRows.length
           ? skillRows.slice(0, 2).map((item) => item.skill?.title ?? "English")
           : ["English natijasi"],
@@ -815,7 +808,7 @@ function ReportApp({
   return (
     <main className="report-app">
       <header className="report-header">
-        <Logo compact />
+        <RbisBrand />
         <nav className={mobileOpen ? "open" : ""} aria-label="Hisobot bo‘limlari">
           <button className={active === "overall" ? "active" : ""} onClick={() => selectTab("overall")}>Umumiy</button>
           {displaySubjects.map((subject) => (
@@ -848,7 +841,7 @@ function ReportApp({
         <SubjectReport subject={activeSubject} candidateName={reportCandidateName} grade={reportGrade} />
       ) : null}
 
-      <footer className="report-footer"><Logo compact /><p>Har bir natijadan aniq o‘quv yo‘ligacha.</p><span>BilimYo‘l · Demo 2026</span></footer>
+      <footer className="report-footer"><RbisBrand inverse /><p>Har bir natijadan aniq o‘quv yo‘ligacha.</p><span>RBIS · 2026</span></footer>
     </main>
   );
 }
