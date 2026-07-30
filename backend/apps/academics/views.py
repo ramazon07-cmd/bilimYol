@@ -7,6 +7,8 @@ from rest_framework import decorators, response, status, viewsets
 from apps.accounts.permissions import IsAdminRole, ReadOnlyOrAdmin
 from apps.accounts.models import Classroom
 from apps.diagnostics.models import ExamAssignment
+from apps.communications.models import Notification
+from apps.communications.services import notify_users
 
 from .models import Exam, Question, Skill, Subject, Topic
 from .policies import enabled_diagnostic_exams
@@ -122,6 +124,14 @@ class ExamViewSet(viewsets.ModelViewSet):
             assignment.delivery_mode = ExamAssignment.DeliveryMode.SELF
             assignment.administered_by = None
             assignment.save()
+            notify_users(
+                [student],
+                kind=Notification.Kind.ASSIGNMENT,
+                title="Yangi English testi biriktirildi",
+                message=exam.title,
+                action_path="test",
+                metadata={"assignment_id": assignment.id},
+            )
             created += int(was_created)
         return response.Response({
             "detail": f"{classroom.name} sinfiga test biriktirildi.",
@@ -183,6 +193,14 @@ class ExamViewSet(viewsets.ModelViewSet):
         if profile:
             profile.status = profile.Status.TEST_ASSIGNED
             profile.save(update_fields=["status", "updated_at"])
+        notify_users(
+            [student],
+            kind=Notification.Kind.ASSIGNMENT,
+            title="Yangi English testi biriktirildi",
+            message=exam.title,
+            action_path="test",
+            metadata={"assignment_id": assignment.id},
+        )
         return response.Response({
             "assignment": assignment.id,
             "created": created,

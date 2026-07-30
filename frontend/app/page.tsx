@@ -36,18 +36,12 @@ import { AdminWorkspace, ParentWorkspace, StudentWorkspace, TeacherWorkspace } f
 import { UniversityJourney } from "./components/dream-university";
 import { RbisBrand } from "./components/rbis-brand";
 import {
-  MINI_EXAM_STORAGE_KEY,
-  MINI_EXAM_STUDENT_RESULTS_KEY,
   hydrateMiniExamResult,
-  miniExamQuestions,
-  normalizeCandidate,
   type MiniExamResult,
 } from "./lib/mini-exam";
 import {
   clearApiSession,
-  createDemoWorkspace,
-  demoCredentials,
-  hasDemoMode,
+  roleLoginDefaults,
   hasLiveApi,
   loginWorkspace,
   restoreWorkspaceSession,
@@ -252,84 +246,9 @@ const levels = [
 ];
 
 
-function buildMiniExamSubjects(result: MiniExamResult): Subject[] {
-  const hydrated = hydrateMiniExamResult(result);
-  const answers = hydrated.answers ?? {};
-  const scores = hydrated.subjectScores ?? { math: 0, english: 0, logic: 0 };
+type LoginRole = Extract<UserRole, "teacher" | "admin">;
 
-  const subjectConfig = [
-    {
-      id: "math" as const,
-      miniId: "math" as const,
-      prefix: "M",
-      skill: "Hisoblash va algebraik fikrlash",
-      strong: "Hisoblash aniqligi",
-      weak: "Algebraik fikrlash",
-      focus: "Asosiy arifmetika va sodda tenglamalar",
-      nextFocus: "Masalani bosqichma-bosqich yechish",
-    },
-    {
-      id: "english" as const,
-      miniId: "english" as const,
-      prefix: "E",
-      skill: "Lug‘at va grammatika",
-      strong: "Leksik tushunish",
-      weak: "Grammatik aniqlik",
-      focus: "Asosiy lug‘at va gap tuzilishi",
-      nextFocus: "Matnni tushunish va grammar",
-    },
-    {
-      id: "critical" as const,
-      miniId: "logic" as const,
-      prefix: "I",
-      skill: "Mantiqiy xulosa",
-      strong: "Qonuniyatni topish",
-      weak: "Shartli mulohaza",
-      focus: "Ketma-ketlik va mantiqiy bog‘lanish",
-      nextFocus: "Ko‘p bosqichli mantiqiy masalalar",
-    },
-  ];
-
-  return subjectConfig.map((config) => {
-    const base = subjects.find((subject) => subject.id === config.id)!;
-    const miniQuestions = miniExamQuestions.filter((question) => question.subjectId === config.miniId);
-    const score = scores[config.miniId];
-    const correctCount = miniQuestions.filter((question) => answers[question.id] === question.correct).length;
-    const questions: Question[] = miniQuestions.map((question, index) => ({
-      code: `${config.prefix}${index + 1}`,
-      status: answers[question.id] === question.correct ? "correct" : "wrong",
-      topic: question.text,
-      skill: config.skill,
-      difficulty: index === miniQuestions.length - 1 ? "O‘rta" : "Boshlang‘ich",
-    }));
-
-    return {
-      ...base,
-      score,
-      rank: `${correctCount} / ${miniQuestions.length}`,
-      percentile: score,
-      potential: Math.min(score + 20, 100),
-      strong: score >= 60 ? [config.strong] : ["Boshlang‘ich bilimlar"],
-      weak: score >= 60 ? [config.weak] : [config.weak, config.focus],
-      skills: [
-        score,
-        Math.max(score - 8, 0),
-        Math.min(score + 5, 100),
-        Math.max(score - 14, 0),
-        Math.min(score + 10, 100),
-        Math.max(score - 5, 0),
-        Math.max(score - 12, 0),
-      ],
-      questions,
-      focus: config.focus,
-      nextFocus: config.nextFocus,
-    };
-  });
-}
-
-const roleOptions: { id: UserRole; label: string; description: string; icon: LucideIcon }[] = [
-  { id: "student", label: "O‘quvchi", description: "Test va shaxsiy roadmap", icon: UserRound },
-  { id: "parent", label: "Ota-ona", description: "Farzand nazorati", icon: UsersRound },
+const roleOptions: { id: LoginRole; label: string; description: string; icon: LucideIcon }[] = [
   { id: "teacher", label: "O‘qituvchi", description: "Sinf diagnostikasi", icon: BookOpenCheck },
   { id: "admin", label: "Admin", description: "Imtihon boshqaruvi", icon: ShieldCheck },
 ];
@@ -338,14 +257,14 @@ function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState<UserRole>("student");
-  const [username, setUsername] = useState(demoCredentials.student.username);
-  const [password, setPassword] = useState(demoCredentials.student.password);
+  const [role, setRole] = useState<LoginRole>("teacher");
+  const [username, setUsername] = useState(roleLoginDefaults.teacher.username);
+  const [password, setPassword] = useState(roleLoginDefaults.teacher.password);
 
-  const chooseRole = (nextRole: UserRole) => {
+  const chooseRole = (nextRole: LoginRole) => {
     setRole(nextRole);
-    setUsername(demoCredentials[nextRole].username);
-    setPassword(demoCredentials[nextRole].password);
+    setUsername(roleLoginDefaults[nextRole].username);
+    setPassword(roleLoginDefaults[nextRole].password);
     setError("");
   };
 
@@ -360,12 +279,8 @@ function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
     setError("");
     setLoading(true);
     try {
-      if (hasLiveApi()) {
-        onEnter(await loginWorkspace(cleanUsername, cleanPassword));
-      } else {
-        if (!hasDemoMode()) throw new Error("API manzili sozlanmagan. Demo rejimi productionda o‘chirilgan.");
-        onEnter(createDemoWorkspace(role));
-      }
+      if (!hasLiveApi()) throw new Error("API manzili sozlanmagan.");
+      onEnter(await loginWorkspace(cleanUsername, cleanPassword));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Kirishda xatolik yuz berdi.");
     } finally {
@@ -382,17 +297,16 @@ function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
         <div className="login-card">
           <div className="secure-badge"><ShieldCheck size={15} /> Himoyalangan platforma</div>
           <h1>Kabinetga kirish</h1>
-          <p>Rolingizni tanlang — tizim sizga kerakli ish maydonini avtomatik ochadi.</p>
+          <p>O‘qituvchi yoki administrator rolini tanlang.</p>
           <div className="role-login-grid" aria-label="Rolni tanlang">{roleOptions.map((option) => { const Icon = option.icon; return <button type="button" key={option.id} className={role === option.id ? "active" : ""} onClick={() => chooseRole(option.id)}><span><Icon size={18} /></span><strong>{option.label}</strong><small>{option.description}</small>{role === option.id && <Check size={14} />}</button>; })}</div>
           <form onSubmit={submit}>
             <label>Login yoki kirish kodi<input name="code" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></label>
             <label>Parol<div className="password-field"><input name="password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label="Parolni ko‘rsatish">{showPassword ? <EyeOff size={19} /> : <Eye size={19} />}</button></div></label>
             {error && <div className="form-error"><CircleHelp size={16} /> {error}</div>}
-            <button className="login-button" type="submit" disabled={loading}><LockKeyhole size={17} /> {loading ? "Kabinet yuklanmoqda..." : `${demoCredentials[role].label} kabinetiga kirish`} <ArrowRight size={18} /></button>
+            <button className="login-button" type="submit" disabled={loading}><LockKeyhole size={17} /> {loading ? "Kabinet yuklanmoqda..." : `${roleLoginDefaults[role].label} kabinetiga kirish`} <ArrowRight size={18} /></button>
           </form>
-          {hasDemoMode() && <div className="demo-hint"><Sparkles size={16} /><span><strong>Mahalliy demo rejimi:</strong> test login bilan rol kabinetini ochishingiz mumkin.</span></div>}
         </div>
-        <span className="login-foot">Prezident maktabiga tayyorgarlik · Demo 2026</span>
+        <span className="login-foot">RBIS · BilimYo‘l platformasi</span>
       </section>
     </main>
   );
@@ -719,53 +633,19 @@ function ReportApp({
   liveReport,
   session,
   exitLabel = "Chiqish",
-  forcedMiniExamResult = null,
   resultOnly = false,
 }: {
   onLogout: () => void;
   liveReport: LiveDiagnosticReport | null;
   session: WorkspaceSession;
   exitLabel?: string;
-  forcedMiniExamResult?: MiniExamResult | null;
   resultOnly?: boolean;
 }) {
   const [active, setActive] = useState<ReportTab>("overall");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [storedMiniExamResult, setStoredMiniExamResult] = useState<MiniExamResult | null>(null);
-  const miniExamResult = useMemo(
-    () => forcedMiniExamResult ? hydrateMiniExamResult(forcedMiniExamResult) : storedMiniExamResult,
-    [forcedMiniExamResult, storedMiniExamResult],
-  );
-
-  useEffect(() => {
-    if (forcedMiniExamResult) return;
-
-    const loadMiniExamResult = () => {
-      try {
-        const saved = window.localStorage.getItem(MINI_EXAM_STUDENT_RESULTS_KEY)
-          ?? window.localStorage.getItem(MINI_EXAM_STORAGE_KEY);
-        const history = saved ? JSON.parse(saved) as MiniExamResult[] : [];
-        const studentKey = normalizeCandidate(session.user.full_name);
-        const matching = history.find((result) => (result.candidateKey ?? normalizeCandidate(result.candidate)) === studentKey) ?? null;
-        setStoredMiniExamResult(matching ? hydrateMiniExamResult(matching) : null);
-        if (matching && session.role === "student") setActive("overall");
-      } catch {
-        setStoredMiniExamResult(null);
-      }
-    };
-    loadMiniExamResult();
-    window.addEventListener("storage", loadMiniExamResult);
-    window.addEventListener("bilimyol-mini-exam-result", loadMiniExamResult);
-    return () => {
-      window.removeEventListener("storage", loadMiniExamResult);
-      window.removeEventListener("bilimyol-mini-exam-result", loadMiniExamResult);
-    };
-  }, [forcedMiniExamResult, session.role, session.user.full_name]);
 
   const displaySubjects = useMemo(() => {
-    if (miniExamResult) return buildMiniExamSubjects(miniExamResult);
-
-    if (!liveReport) return subjects;
+    if (!liveReport) return [];
 
     return liveReport.subject_results.map((live) => {
       const subjectId = live.subject.slug === "iq" ? "critical" : live.subject.slug;
@@ -791,19 +671,22 @@ function ReportApp({
         questions: [],
       };
     });
-  }, [liveReport, miniExamResult]);
+  }, [liveReport]);
 
   const activeSubject = useMemo(() => displaySubjects.find((subject) => subject.id === active), [active, displaySubjects]);
-  const hideUniversity = resultOnly || Boolean(miniExamResult);
-  const reportCandidateName = miniExamResult?.candidate ?? liveReport?.student.full_name ?? "Bobur Xasanboyev";
-  const reportGrade = miniExamResult?.grade
-    ?? (liveReport?.grade || liveReport?.exam?.grade ? `${liveReport?.grade ?? liveReport?.exam?.grade}-sinf` : "Sinf belgilanmagan");
+  const hideUniversity = resultOnly;
+  const reportCandidateName = liveReport?.student.full_name ?? "";
+  const reportGrade = liveReport?.grade || liveReport?.exam?.grade ? `${liveReport?.grade ?? liveReport?.exam?.grade}-sinf` : "Sinf belgilanmagan";
 
   const selectTab = (id: ReportTab) => {
     setActive(id);
     setMobileOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  if (!liveReport) {
+    return <main className="session-restore-screen"><strong>Hisobot topilmadi.</strong><button className="portal-secondary" onClick={onLogout}>Kabinetga qaytish</button></main>;
+  }
 
   return (
     <main className="report-app">
@@ -832,11 +715,10 @@ function ReportApp({
         <Overview
           onSelect={selectTab}
           subjectList={displaySubjects}
-          liveReport={miniExamResult ? null : liveReport}
-          miniExamResult={miniExamResult}
+          liveReport={liveReport}
         />
       ) : active === "university" && !hideUniversity ? (
-        <div className="report-university-wrap"><UniversityJourney session={session} title="Mening Dream University yo‘lim" /></div>
+        <div className="report-university-wrap"><UniversityJourney session={session} studentId={liveReport.student.id} title="Mening Dream University yo‘lim" /></div>
       ) : activeSubject ? (
         <SubjectReport subject={activeSubject} candidateName={reportCandidateName} grade={reportGrade} />
       ) : null}
@@ -849,8 +731,7 @@ function ReportApp({
 export default function Home() {
   const [session, setSession] = useState<WorkspaceSession | null>(null);
   const [restoringSession, setRestoringSession] = useState(true);
-  const [viewingReport, setViewingReport] = useState(false);
-  const [adminDiagnosticReport, setAdminDiagnosticReport] = useState<LiveDiagnosticReport | null>(null);
+  const [workspaceReport, setWorkspaceReport] = useState<LiveDiagnosticReport | null>(null);
   const [studentDiagnosticReport, setStudentDiagnosticReport] = useState<LiveDiagnosticReport | null>(null);
 
   useEffect(() => {
@@ -868,8 +749,7 @@ export default function Home() {
   const logout = () => {
     clearApiSession();
     setSession(null);
-    setViewingReport(false);
-    setAdminDiagnosticReport(null);
+    setWorkspaceReport(null);
     setStudentDiagnosticReport(null);
   };
   if (restoringSession) return <main className="session-restore-screen"><span className="session-restore-spinner" /><strong>Kabinet tiklanmoqda...</strong></main>;
@@ -880,9 +760,8 @@ export default function Home() {
   if (session.role === "student") {
     return <StudentWorkspace session={session} onLogout={logout} onOpenReport={setStudentDiagnosticReport} />;
   }
-  if (adminDiagnosticReport) return <ReportApp onLogout={() => setAdminDiagnosticReport(null)} liveReport={adminDiagnosticReport} session={session} exitLabel="Admin kabinetiga qaytish" resultOnly />;
-  if (viewingReport) return <ReportApp onLogout={() => setViewingReport(false)} liveReport={session.report} session={session} exitLabel="Kabinetga qaytish" />;
-  if (session.role === "parent") return <ParentWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} />;
-  if (session.role === "teacher") return <TeacherWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} />;
-  return <AdminWorkspace session={session} onLogout={logout} onOpenReport={() => setViewingReport(true)} onOpenExamResult={setAdminDiagnosticReport} />;
+  if (workspaceReport) return <ReportApp onLogout={() => setWorkspaceReport(null)} liveReport={workspaceReport} session={session} exitLabel="Kabinetga qaytish" resultOnly={session.role === "admin"} />;
+  if (session.role === "parent") return <ParentWorkspace session={session} onLogout={logout} onOpenReport={setWorkspaceReport} />;
+  if (session.role === "teacher") return <TeacherWorkspace session={session} onLogout={logout} onOpenReport={setWorkspaceReport} />;
+  return <AdminWorkspace session={session} onLogout={logout} onOpenReport={setWorkspaceReport} onOpenExamResult={setWorkspaceReport} />;
 }

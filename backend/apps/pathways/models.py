@@ -48,6 +48,11 @@ class Certificate(models.Model):
         CEFR = "cefr", "CEFR"
         OTHER = "other", "Boshqa"
 
+    class VerificationStatus(models.TextChoices):
+        PENDING = "pending", "Tekshiruvda"
+        VERIFIED = "verified", "Tasdiqlangan"
+        REJECTED = "rejected", "Rad etilgan"
+
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="certificates", limit_choices_to={"role": "student"})
     kind = models.CharField(max_length=16, choices=Kind.choices)
     title = models.CharField(max_length=180)
@@ -56,6 +61,14 @@ class Certificate(models.Model):
     expires_at = models.DateField(null=True, blank=True)
     file_url = models.URLField(blank=True)
     is_verified = models.BooleanField(default=False, db_index=True)
+    verification_status = models.CharField(
+        max_length=16,
+        choices=VerificationStatus.choices,
+        default=VerificationStatus.PENDING,
+        db_index=True,
+    )
+    verification_note = models.TextField(blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="verified_certificates")
     created_at = models.DateTimeField(auto_now_add=True)
 

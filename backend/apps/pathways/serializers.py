@@ -20,12 +20,31 @@ class CertificateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Certificate
-        fields = ["id", "student", "student_detail", "kind", "title", "score", "issued_at", "expires_at", "file_url", "is_verified", "verified_by", "verified_by_name", "created_at"]
-        read_only_fields = ["is_verified", "verified_by", "created_at"]
+        fields = [
+            "id", "student", "student_detail", "kind", "title", "score", "issued_at",
+            "expires_at", "file_url", "is_verified", "verification_status",
+            "verification_note", "reviewed_at", "verified_by", "verified_by_name", "created_at",
+        ]
+        read_only_fields = [
+            "is_verified", "verification_status", "verification_note", "reviewed_at",
+            "verified_by", "created_at",
+        ]
 
     def validate(self, attrs):
         if self.instance and "student" in attrs and attrs["student"].id != self.instance.student_id:
             raise serializers.ValidationError({"student": "Sertifikat egasini o‘zgartirib bo‘lmaydi."})
+        kind = attrs.get("kind", getattr(self.instance, "kind", None))
+        score = attrs.get("score", getattr(self.instance, "score", None))
+        issued_at = attrs.get("issued_at", getattr(self.instance, "issued_at", None))
+        expires_at = attrs.get("expires_at", getattr(self.instance, "expires_at", None))
+        if expires_at and issued_at and expires_at < issued_at:
+            raise serializers.ValidationError({"expires_at": "Amal qilish sanasi berilgan sanadan oldin bo‘la olmaydi."})
+        if kind == Certificate.Kind.IELTS and score is not None and not Decimal("0") <= score <= Decimal("9"):
+            raise serializers.ValidationError({"score": "IELTS balli 0 dan 9 gacha bo‘lishi kerak."})
+        if kind == Certificate.Kind.SAT and score is not None and not Decimal("400") <= score <= Decimal("1600"):
+            raise serializers.ValidationError({"score": "SAT balli 400 dan 1600 gacha bo‘lishi kerak."})
+        if kind == Certificate.Kind.CEFR and score is not None and not Decimal("0") <= score <= Decimal("100"):
+            raise serializers.ValidationError({"score": "CEFR natijasi 0 dan 100 gacha bo‘lishi kerak."})
         return attrs
 
 

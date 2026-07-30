@@ -122,8 +122,11 @@ class WeeklyTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = WeeklyTask
         fields = [
-            "id", "week_number", "audience", "title", "description", "resource_url",
+            "id", "stage", "week_number", "audience", "title", "description", "resource_url",
             "is_completed", "completed_at",
+        ]
+        read_only_fields = [
+            "stage", "week_number", "audience", "title", "description", "resource_url", "completed_at",
         ]
 
 

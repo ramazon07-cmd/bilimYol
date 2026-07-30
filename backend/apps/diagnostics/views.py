@@ -13,15 +13,18 @@ from apps.accounts.permissions import IsTeacherOrAdmin
 from apps.academics.models import Exam, ExamQuestion, QuestionOption
 from apps.academics.policies import enabled_diagnostic_exams, is_enabled_diagnostic_exam
 
-from .models import DiagnosticReport, ExamAssignment, ExamAttempt, Roadmap, StudentAnswer
+from .models import DiagnosticReport, ExamAssignment, ExamAttempt, Roadmap, StudentAnswer, WeeklyTask
 from .serializers import (
     AssignmentSerializer,
     AttemptSerializer,
     DiagnosticReportDetailSerializer,
     DiagnosticReportSerializer,
     RoadmapSerializer,
+    WeeklyTaskSerializer,
 )
 from .services import start_attempt, submit_attempt
+from apps.communications.models import Notification
+from apps.communications.services import family_users, notify_users
 
 
 User = get_user_model()
@@ -84,10 +87,18 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         classroom = serializer.validated_data.get("classroom")
         if user.role == User.Role.TEACHER and not teacher_can_manage_assignment(user, student, classroom):
             raise PermissionDenied("O‘qituvchi faqat o‘z sinfidagi o‘quvchiga imtihon biriktira oladi.")
-        serializer.save(
+        assignment = serializer.save(
             assigned_by=user,
             delivery_mode=ExamAssignment.DeliveryMode.SELF,
             administered_by=None,
+        )
+        notify_users(
+            [student],
+            kind=Notification.Kind.ASSIGNMENT,
+            title="Yangi English testi biriktirildi",
+            message=exam.title,
+            action_path="test",
+            metadata={"assignment_id": assignment.id},
         )
 
     def perform_update(self, serializer):
@@ -177,6 +188,27 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         if not can_operate_exam(request.user, attempt.assignment):
             raise PermissionDenied("Bu urinishni yakunlash huquqiga ega emassiz.")
         report = submit_attempt(attempt, submitted_by=request.user)
+        student = attempt.assignment.student
+        notify_users(
+            family_users(student),
+            kind=Notification.Kind.RESULT,
+            title="English diagnostika natijasi tayyor",
+            message=f"{student.full_name}: {report.overall_score}/100",
+            action_path="results",
+            metadata={"report_id": report.id, "student_id": student.id},
+        )
+        teachers = User.objects.filter(
+            teaching_classes__students=student,
+            is_active=True,
+        ).distinct()
+        notify_users(
+            teachers,
+            kind=Notification.Kind.RESULT,
+            title="O‘quvchi diagnostikani yakunladi",
+            message=f"{student.full_name}: {report.overall_score}/100",
+            action_path="classroom",
+            metadata={"report_id": report.id, "student_id": student.id},
+        )
         return response.Response(DiagnosticReportSerializer(report, context={"request": request}).data)
 
 
@@ -390,7 +422,46 @@ class RoadmapViewSet(viewsets.ModelViewSet):
         if profile:
             profile.status = profile.Status.ACTIVE
             profile.save(update_fields=["status", "updated_at"])
+        notify_users(
+            family_users(roadmap.student),
+            kind=Notification.Kind.ROADMAP,
+            title="Roadmap tasdiqlandi",
+            message=f"{roadmap.student.full_name} uchun shaxsiy roadmap tasdiqlandi.",
+            action_path="roadmap",
+            metadata={"roadmap_id": roadmap.id, "student_id": roadmap.student_id},
+        )
         return response.Response(self.get_serializer(roadmap).data)
+
+
+class WeeklyTaskViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = WeeklyTaskSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ["stage__roadmap", "audience", "is_completed"]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = WeeklyTask.objects.select_related(
+            "stage__roadmap__student",
+        )
+        if user.is_superuser or user.role == User.Role.ADMIN:
+            return queryset
+        return queryset.filter(stage__roadmap__student_id__in=student_ids_for(user)).distinct()
+
+    def partial_update(self, request, *args, **kwargs):
+        task = self.get_object()
+        user = request.user
+        allowed_audience = {
+            User.Role.STUDENT: WeeklyTask.Audience.STUDENT,
+            User.Role.PARENT: WeeklyTask.Audience.PARENT,
+            User.Role.TEACHER: WeeklyTask.Audience.TEACHER,
+        }.get(user.role)
+        if not (user.is_superuser or user.role == User.Role.ADMIN) and task.audience != allowed_audience:
+            raise PermissionDenied("Bu vazifa holatini o‘zgartira olmaysiz.")
+        is_completed = bool(request.data.get("is_completed"))
+        task.is_completed = is_completed
+        task.completed_at = timezone.now() if is_completed else None
+        task.save(update_fields=["is_completed", "completed_at"])
+        return response.Response(self.get_serializer(task).data)
 
 
 class DashboardView(APIView):

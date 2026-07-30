@@ -51,6 +51,23 @@ class ClassroomSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "grade", "program", "teacher", "teacher_detail", "is_active", "student_count", "enrollments", "created_at"]
         read_only_fields = ["created_at"]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or user.is_superuser or user.role in {User.Role.ADMIN, User.Role.TEACHER}:
+            return data
+        allowed_ids = {user.id}
+        if user.role == User.Role.PARENT:
+            allowed_ids = set(user.children_links.values_list("student_id", flat=True))
+        data["enrollments"] = [
+            enrollment
+            for enrollment in data["enrollments"]
+            if enrollment["student"] in allowed_ids
+        ]
+        data["student_count"] = len(data["enrollments"])
+        return data
+
 
 class ParentStudentSerializer(serializers.ModelSerializer):
     parent_detail = UserSerializer(source="parent", read_only=True)

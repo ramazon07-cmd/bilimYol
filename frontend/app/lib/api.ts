@@ -169,8 +169,10 @@ export type LiveUniversityRequirement = {
 
 export type LiveUniversityGoal = {
   id: number;
+  student: number;
   target_year: number;
-  university_detail: { id: number; name: string; country: string; city: string };
+  university: number;
+  university_detail: LiveUniversity;
   progress: {
     overall: number;
     status: string;
@@ -178,6 +180,168 @@ export type LiveUniversityGoal = {
     latest_mock_score: number | null;
     requirements: LiveUniversityRequirement[];
   };
+};
+
+export type LiveUniversity = {
+  id: number;
+  name: string;
+  country: string;
+  city: string;
+  logo_url?: string;
+  target_math: number;
+  target_english: number;
+  target_iq: number;
+  target_ielts: string | number;
+  target_sat: number;
+  is_active: boolean;
+};
+
+export type LiveCertificate = {
+  id: number;
+  student: number;
+  student_detail: LiveUser;
+  kind: "ielts" | "sat" | "cefr" | "other";
+  title: string;
+  score: string | number;
+  issued_at: string;
+  expires_at: string | null;
+  file_url: string;
+  is_verified: boolean;
+  verification_status: "pending" | "verified" | "rejected";
+  verification_note: string;
+  reviewed_at: string | null;
+  verified_by_name: string | null;
+  created_at: string;
+};
+
+export type LiveWeeklyTask = {
+  id: number;
+  stage: number;
+  week_number: number;
+  audience: "student" | "parent" | "teacher";
+  title: string;
+  description: string;
+  resource_url: string;
+  is_completed: boolean;
+  completed_at: string | null;
+};
+
+export type LiveRoadmapStage = {
+  id: number;
+  order: number;
+  title: string;
+  start_month: number;
+  end_month: number;
+  start_score: number;
+  target_score: number;
+  weekly_hours: number;
+  rationale: string;
+  subject?: { id: number; slug: string; title: string; color: string };
+  focus_topic?: { id: number; title: string };
+  weekly_tasks: LiveWeeklyTask[];
+};
+
+export type LiveRoadmap = {
+  id: number;
+  report: number;
+  student: number;
+  student_detail: LiveUser;
+  teacher_detail: LiveUser | null;
+  primary_goal_title: string | null;
+  target_score: number;
+  weekly_hours: number;
+  status: "draft" | "approved" | "active" | "completed";
+  approved_at: string | null;
+  admin_note: string;
+  stages: LiveRoadmapStage[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type LiveClassroom = {
+  id: number;
+  name: string;
+  grade: number;
+  program: string;
+  teacher: number | null;
+  teacher_detail: LiveUser | null;
+  is_active: boolean;
+  student_count: number;
+  enrollments: {
+    id: number;
+    student: number;
+    student_detail: LiveUser;
+    joined_at: string;
+  }[];
+};
+
+export type LiveAssignment = {
+  id: number;
+  exam: number;
+  exam_detail: {
+    id: number;
+    title: string;
+    grade: number | null;
+    duration_minutes: number;
+    exam_questions: unknown[];
+  };
+  classroom: number | null;
+  classroom_detail: LiveClassroom | null;
+  student: number;
+  student_detail: LiveUser;
+  available_from: string | null;
+  due_at: string | null;
+  is_active: boolean;
+  delivery_mode: "self" | "administered";
+  has_attempt: boolean;
+  created_at: string;
+};
+
+export type LiveParentStudent = {
+  id: number;
+  parent: number;
+  parent_detail: LiveUser;
+  student: number;
+  student_detail: LiveUser;
+  relationship: string;
+  created_at: string;
+};
+
+export type LiveNotification = {
+  id: number;
+  kind: "assignment" | "result" | "roadmap" | "university" | "certificate" | "message" | "system";
+  title: string;
+  message: string;
+  action_path: string;
+  metadata: Record<string, unknown>;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type LiveMessage = {
+  id: number;
+  conversation: number;
+  sender: number;
+  sender_detail: LiveUser;
+  body: string;
+  created_at: string;
+};
+
+export type LiveConversation = {
+  id: number;
+  kind: "teacher" | "academic";
+  title: string;
+  student: number;
+  student_detail: LiveUser;
+  parent: number;
+  parent_detail: LiveUser;
+  teacher: number | null;
+  teacher_detail: LiveUser | null;
+  messages: LiveMessage[];
+  last_message: LiveMessage | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type WorkspaceSession = {
@@ -197,21 +361,7 @@ export type PaginatedResponse<T> = {
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
 
-const demoUsers: Record<UserRole, LiveUser> = {
-  student: { id: 1, username: "student", full_name: "Bobur Xasanboyev", role: "student", email: "student@bilimyol.uz" },
-  parent: { id: 2, username: "parent", full_name: "Dilnoza Xasanboyeva", role: "parent", email: "parent@bilimyol.uz" },
-  teacher: { id: 3, username: "teacher", full_name: "Madina Karimova", role: "teacher", email: "teacher@bilimyol.uz" },
-  admin: { id: 4, username: "admin", full_name: "Azizbek Rahimov", role: "admin", email: "admin@bilimyol.uz" },
-};
-
-const demoDashboards: Record<UserRole, LiveDashboard> = {
-  student: { role: "student", students: 1, active_assignments: 3, completed_attempts: 1, average_score: 41, readiness: [{ readiness: "not_ready", count: 1 }] },
-  parent: { role: "parent", students: 1, active_assignments: 3, completed_attempts: 1, average_score: 41, readiness: [{ readiness: "not_ready", count: 1 }] },
-  teacher: { role: "teacher", students: 24, active_assignments: 18, completed_attempts: 21, average_score: 63.4, readiness: [{ readiness: "ready", count: 9 }, { readiness: "not_ready", count: 15 }] },
-  admin: { role: "admin", students: 486, active_assignments: 312, completed_attempts: 428, average_score: 67.8, readiness: [{ readiness: "ready", count: 214 }, { readiness: "not_ready", count: 214 }] },
-};
-
-export const demoCredentials: Record<UserRole, { username: string; password: string; label: string }> = {
+export const roleLoginDefaults: Record<UserRole, { username: string; password: string; label: string }> = {
   student: { username: "", password: "", label: "O‘quvchi" },
   parent: { username: "", password: "", label: "Ota-ona" },
   teacher: { username: "", password: "", label: "O‘qituvchi" },
@@ -220,14 +370,6 @@ export const demoCredentials: Record<UserRole, { username: string; password: str
 
 export function hasLiveApi() {
   return Boolean(apiBase);
-}
-
-export function hasDemoMode() {
-  return process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true";
-}
-
-export function createDemoWorkspace(role: UserRole): WorkspaceSession {
-  return { role, user: demoUsers[role], dashboard: demoDashboards[role], report: null, university_goal: null };
 }
 
 const ACCESS_TOKEN_KEY = "bilimyol_access";
@@ -313,6 +455,10 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     throw new Error(detail ?? translatedFieldMessage ?? "Server bilan ishlashda xatolik yuz berdi.");
   }
   return payload as T;
+}
+
+export function unpackList<T>(payload: PaginatedResponse<T> | T[]): T[] {
+  return Array.isArray(payload) ? payload : payload.results ?? [];
 }
 
 async function loadWorkspaceSession(): Promise<WorkspaceSession> {

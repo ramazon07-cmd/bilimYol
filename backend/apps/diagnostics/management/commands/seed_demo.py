@@ -10,6 +10,7 @@ from apps.academics.models import Exam, ExamQuestion, ExamSubjectWeight, Questio
 from apps.diagnostics.models import ExamAssignment, ExamAttempt, StudentAnswer
 from apps.diagnostics.services import submit_attempt
 from apps.pathways.models import Certificate, University, UniversityGoal
+from apps.communications.models import Conversation, Message
 from apps.profiling.models import Category, GuardianContact, StudentCategory, StudentGoal, StudentInterview, StudentProfile
 
 
@@ -327,13 +328,57 @@ class Command(BaseCommand):
             student=student,
             kind=Certificate.Kind.IELTS,
             title="IELTS Academic",
-            defaults={"score": 7.0, "issued_at": timezone.localdate() - timedelta(days=40), "is_verified": True, "verified_by": admin},
+            defaults={
+                "score": 7.0,
+                "issued_at": timezone.localdate() - timedelta(days=40),
+                "is_verified": True,
+                "verification_status": Certificate.VerificationStatus.VERIFIED,
+                "reviewed_at": timezone.now(),
+                "verified_by": admin,
+            },
         )
         Certificate.objects.update_or_create(
             student=student,
             kind=Certificate.Kind.SAT,
             title="SAT",
-            defaults={"score": 1490, "issued_at": timezone.localdate() - timedelta(days=20), "is_verified": True, "verified_by": admin},
+            defaults={
+                "score": 1490,
+                "issued_at": timezone.localdate() - timedelta(days=20),
+                "is_verified": True,
+                "verification_status": Certificate.VerificationStatus.VERIFIED,
+                "reviewed_at": timezone.now(),
+                "verified_by": admin,
+            },
+        )
+        teacher_thread, _ = Conversation.objects.update_or_create(
+            student=student,
+            parent=parent,
+            kind=Conversation.Kind.TEACHER,
+            defaults={
+                "title": f"{student.full_name} · sinf rahbari",
+                "teacher": teacher,
+                "created_by": admin,
+            },
+        )
+        academic_thread, _ = Conversation.objects.update_or_create(
+            student=student,
+            parent=parent,
+            kind=Conversation.Kind.ACADEMIC,
+            defaults={
+                "title": f"{student.full_name} · akademik bo‘lim",
+                "teacher": None,
+                "created_by": admin,
+            },
+        )
+        Message.objects.get_or_create(
+            conversation=teacher_thread,
+            sender=teacher,
+            body="Roadmap tasdiqlangach, asosiy fokus va haftalik vazifalar shu yerda muhokama qilinadi.",
+        )
+        Message.objects.get_or_create(
+            conversation=academic_thread,
+            sender=admin,
+            body="Keyingi diagnostika va sertifikat tekshiruvi bo‘yicha yangiliklar shu suhbatda beriladi.",
         )
 
         self.stdout.write(self.style.SUCCESS("Demo tayyor: admin/admin12345, teacher/teacher123, student/student123, parent/parent123"))

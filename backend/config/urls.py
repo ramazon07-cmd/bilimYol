@@ -7,8 +7,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.accounts.views import ClassroomViewSet, MeView, ParentStudentViewSet, UserViewSet
 from apps.academics.views import ExamViewSet, QuestionViewSet, SkillViewSet, SubjectViewSet, TopicViewSet
-from apps.diagnostics.views import AssignmentViewSet, AttemptViewSet, DashboardView, DiagnosticReportViewSet, RoadmapViewSet
+from apps.diagnostics.views import AssignmentViewSet, AttemptViewSet, DashboardView, DiagnosticReportViewSet, RoadmapViewSet, WeeklyTaskViewSet
 from apps.pathways.views import CertificateViewSet, UniversityGoalViewSet, UniversityViewSet
+from apps.communications.views import ConversationViewSet, MessageViewSet, NotificationViewSet
 from apps.profiling.views import (
     CategoryViewSet,
     GuardianContactViewSet,
@@ -38,9 +39,13 @@ router.register("assignments", AssignmentViewSet, basename="assignment")
 router.register("attempts", AttemptViewSet, basename="attempt")
 router.register("reports", DiagnosticReportViewSet, basename="report")
 router.register("roadmaps", RoadmapViewSet, basename="roadmap")
+router.register("weekly-tasks", WeeklyTaskViewSet, basename="weekly-task")
 router.register("universities", UniversityViewSet, basename="university")
 router.register("university-goals", UniversityGoalViewSet, basename="university-goal")
 router.register("certificates", CertificateViewSet, basename="certificate")
+router.register("notifications", NotificationViewSet, basename="notification")
+router.register("conversations", ConversationViewSet, basename="conversation")
+router.register("messages", MessageViewSet, basename="message")
 
 def health_check(request):
     return JsonResponse({
