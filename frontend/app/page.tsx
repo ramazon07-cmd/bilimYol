@@ -46,6 +46,7 @@ import {
   clearApiSession,
   createDemoWorkspace,
   demoCredentials,
+  hasDemoMode,
   hasLiveApi,
   loginWorkspace,
   restoreWorkspaceSession,
@@ -369,9 +370,7 @@ function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
       if (hasLiveApi()) {
         onEnter(await loginWorkspace(cleanUsername, cleanPassword));
       } else {
-        const expected = demoCredentials[role];
-        const validStudentCode = role === "student" && ["BILIM-2026", "student"].includes(cleanUsername);
-        if ((!validStudentCode && cleanUsername !== expected.username) || cleanPassword !== expected.password) throw new Error("Tanlangan rol uchun login yoki parol noto‘g‘ri.");
+        if (!hasDemoMode()) throw new Error("API manzili sozlanmagan. Demo rejimi productionda o‘chirilgan.");
         onEnter(createDemoWorkspace(role));
       }
     } catch (caught) {
@@ -398,7 +397,7 @@ function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
             {error && <div className="form-error"><CircleHelp size={16} /> {error}</div>}
             <button className="login-button" type="submit" disabled={loading}><LockKeyhole size={17} /> {loading ? "Kabinet yuklanmoqda..." : `${demoCredentials[role].label} kabinetiga kirish`} <ArrowRight size={18} /></button>
           </form>
-          <div className="demo-hint"><Sparkles size={16} /><span><strong>4 ta demo rol tayyor:</strong> rolni bosing — login va parol avtomatik almashadi.</span></div>
+          {hasDemoMode() && <div className="demo-hint"><Sparkles size={16} /><span><strong>Mahalliy demo rejimi:</strong> test login bilan rol kabinetini ochishingiz mumkin.</span></div>}
         </div>
         <span className="login-foot">Prezident maktabiga tayyorgarlik · Demo 2026</span>
       </section>

@@ -105,14 +105,18 @@ const demoDashboards: Record<UserRole, LiveDashboard> = {
 };
 
 export const demoCredentials: Record<UserRole, { username: string; password: string; label: string }> = {
-  student: { username: "BILIM-2026", password: "student123", label: "O‘quvchi" },
-  parent: { username: "parent", password: "parent123", label: "Ota-ona" },
-  teacher: { username: "teacher", password: "teacher123", label: "O‘qituvchi" },
-  admin: { username: "admin", password: "admin12345", label: "Administrator" },
+  student: { username: "", password: "", label: "O‘quvchi" },
+  parent: { username: "", password: "", label: "Ota-ona" },
+  teacher: { username: "", password: "", label: "O‘qituvchi" },
+  admin: { username: "", password: "", label: "Administrator" },
 };
 
 export function hasLiveApi() {
   return Boolean(apiBase);
+}
+
+export function hasDemoMode() {
+  return process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === "true";
 }
 
 export function createDemoWorkspace(role: UserRole): WorkspaceSession {
@@ -225,11 +229,10 @@ async function loadWorkspaceSession(): Promise<WorkspaceSession> {
 
 export async function loginWorkspace(username: string, password: string): Promise<WorkspaceSession> {
   if (!apiBase) throw new Error("API manzili sozlanmagan.");
-  const normalizedUsername = username === "BILIM-2026" ? "student" : username;
   const tokenResponse = await fetch(`${apiBase}/auth/token/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: normalizedUsername, password }),
+    body: JSON.stringify({ username, password }),
   });
   if (!tokenResponse.ok) throw new Error("Login yoki parol noto‘g‘ri.");
   const tokens = await tokenResponse.json() as { access: string; refresh: string };
@@ -254,4 +257,3 @@ export function clearApiSession() {
   window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
 }
-

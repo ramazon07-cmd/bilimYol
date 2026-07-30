@@ -38,7 +38,7 @@ python manage.py runserver
 API: `http://localhost:8000/api/`  
 Swagger: `http://localhost:8000/api/docs/`
 
-Demo foydalanuvchilar:
+Demo foydalanuvchilar faqat lokal `DEBUG=True` muhitida yaratiladi:
 
 | Rol | Login | Parol |
 |---|---|---|
@@ -58,7 +58,9 @@ npm install
 npm run dev
 ```
 
-Frontend API ishlamayotgan paytda ham ichki demo dataset bilan ochiladi. API ulanib turganda `BILIM-2026` kodi va `student123` paroli backenddagi o‘quvchi hisobotini yuklaydi.
+Ichki frontend demo rejimi default holatda o‘chiq. Faqat lokal UI demo kerak bo‘lsa
+`NEXT_PUBLIC_ENABLE_DEMO_MODE=true` qo‘ying. Productionda haqiqiy API va alohida
+foydalanuvchi hisoblaridan foydalaning.
 
 ## 4 ta rol uchun kabinetlar
 
@@ -94,7 +96,8 @@ Frontend API ishlamayotgan paytda ham ichki demo dataset bilan ochiladi. API ula
 - Sertifikat universitet talabiga yetsa, shu talab avtomatik `100% · Tayyor` bo‘ladi.
 - Universitet o‘zgarsa, uning maqsad ballari asosida progress qayta hisoblanadi.
 
-Login sahifasida rol tanlanganda tegishli demo login va parol avtomatik qo‘yiladi. Live API ishlaganda kabinet backend qaytargan haqiqiy foydalanuvchi roli asosida ochiladi.
+Login sahifasi demo login va parollarni avtomatik to‘ldirmaydi. Live API ishlaganda
+kabinet backend qaytargan haqiqiy foydalanuvchi roli asosida ochiladi.
 
 ## Asosiy API oqimi
 
@@ -133,3 +136,4 @@ npm run build
 - `DATABASE_URL` orqali PostgreSQL ulang.
 - `DEBUG=False` va aniq `ALLOWED_HOSTS` o‘rnating.
 - Frontendda `NEXT_PUBLIC_API_BASE_URL=https://api-domeningiz.uz/api` kiriting.
+- `NEXT_PUBLIC_ENABLE_DEMO_MODE=false` qoldiring va production bazada eski demo hisoblar bo‘lsa, ularni o‘chiring yoki parollarini almashtiring.
