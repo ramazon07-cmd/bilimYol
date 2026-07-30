@@ -281,7 +281,14 @@ class Command(BaseCommand):
                         "order": index + 1,
                     },
                 )
-        assignment, _ = ExamAssignment.objects.update_or_create(exam=exam, student=student, defaults={"classroom": classroom, "is_active": True, "assigned_by": teacher, "due_at": timezone.now() + timedelta(days=7)})
+        assignment = ExamAssignment.objects.filter(exam=exam, student=student, is_active=True).first()
+        if assignment is None:
+            assignment = ExamAssignment(exam=exam, student=student)
+        assignment.classroom = classroom
+        assignment.is_active = True
+        assignment.assigned_by = teacher
+        assignment.due_at = timezone.now() + timedelta(days=7)
+        assignment.save()
 
         if not assignment.attempts.filter(status=ExamAttempt.Status.SUBMITTED).exists():
             attempt = ExamAttempt.objects.create(assignment=assignment, expires_at=timezone.now() + timedelta(minutes=90))

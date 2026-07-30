@@ -11,11 +11,81 @@ export type LiveUser = {
 };
 
 export type LiveSubjectResult = {
+  id?: number;
+  earned_points?: string | number;
+  possible_points?: string | number;
+  weight_percent?: string | number;
   score: string | number;
   percentile: number;
   potential: number;
   level: string;
-  subject: { slug: string; title: string; color: string };
+  subject: { id?: number; slug: string; title: string; color: string };
+};
+
+export type LiveBreakdownResult = {
+  id: number;
+  earned_points: string | number;
+  possible_points: string | number;
+  score: string | number;
+  question_count: number;
+  confidence: string;
+  topic?: { id: number; code: string; title: string; subject?: number };
+  skill?: { id: number; slug: string; title: string; subject?: number };
+};
+
+export type LiveAnswerSummary = {
+  total: number;
+  correct: number;
+  incorrect: number;
+  unanswered: number;
+};
+
+export type LiveQuestionReview = {
+  exam_question_id: number;
+  code: string;
+  context: string;
+  prompt: string;
+  subject: { id: number; slug: string; title: string };
+  topic: { id: number; code: string; title: string };
+  skills: { id: number; slug: string; title: string }[];
+  difficulty: "basic" | "medium" | "high";
+  points: string | number;
+  selected_option: { id: number; label: string; text: string } | null;
+  correct_option?: { id: number; label: string; text: string } | null;
+  is_answered: boolean;
+  is_correct: boolean;
+  earned_points: string | number;
+  is_flagged: boolean;
+  answered_at: string | null;
+  explanation?: string;
+};
+
+export type LivePreviousAttempt = {
+  id: number;
+  attempt_id: number;
+  exam_id: number;
+  exam_title: string;
+  overall_score: string | number;
+  readiness: "ready" | "not_ready";
+  generated_at: string;
+  same_exam: boolean;
+};
+
+export type LiveComparisonRow = {
+  id: number;
+  title: string;
+  current_score: number;
+  previous_score: number;
+  delta: number;
+};
+
+export type LiveReportComparison = {
+  current: { id: number; exam_title: string; overall_score: string | number; generated_at: string };
+  previous: { id: number; exam_title: string; overall_score: string | number; generated_at: string };
+  overall_delta: number;
+  subjects: LiveComparisonRow[];
+  topics: LiveComparisonRow[];
+  skills: LiveComparisonRow[];
 };
 
 export type LiveDiagnosticReport = {
@@ -30,13 +100,51 @@ export type LiveDiagnosticReport = {
   student: { id?: number; full_name: string; username: string };
   exam?: { id: number; title: string; grade: number | null; purpose?: string };
   subject_results: LiveSubjectResult[];
+  topic_results?: LiveBreakdownResult[];
+  skill_results?: LiveBreakdownResult[];
+  grade?: number | null;
+  classroom?: { id: number; name: string; grade: number } | null;
+  answer_summary?: LiveAnswerSummary;
   roadmap?: {
     id: number;
     status: string;
     target_score: number;
     weekly_hours: number;
     primary_goal_title?: string | null;
+    admin_note?: string;
+    stages?: {
+      id: number;
+      order: number;
+      title: string;
+      start_month: number;
+      end_month: number;
+      start_score: number;
+      target_score: number;
+      weekly_hours: number;
+      rationale: string;
+      subject?: { title: string };
+      focus_topic?: { title: string };
+    }[];
   } | null;
+};
+
+export type LiveDiagnosticReportDetail = LiveDiagnosticReport & {
+  attempt_detail: {
+    id: number;
+    assignment_id: number;
+    status: string;
+    started_at: string;
+    submitted_at: string | null;
+    expires_at: string;
+    started_by: string | null;
+    submitted_by: string | null;
+    earned_points: string | number;
+    delivery_mode: string;
+  };
+  question_review: LiveQuestionReview[];
+  strengths: { kind: "skill" | "topic"; title: string; subject: string; score: string | number }[];
+  weaknesses: { kind: "skill" | "topic"; title: string; subject: string; score: string | number }[];
+  previous_attempts: LivePreviousAttempt[];
 };
 
 export type LiveDashboard = {

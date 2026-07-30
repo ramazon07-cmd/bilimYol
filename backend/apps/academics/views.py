@@ -107,17 +107,16 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam.target_classrooms.add(classroom)
         created = 0
         for student in classroom.students.all():
-            _, was_created = ExamAssignment.objects.update_or_create(
-                exam=exam,
-                student=student,
-                defaults={
-                    "classroom": classroom,
-                    "available_from": request.data.get("available_from") or timezone.now(),
-                    "due_at": request.data.get("due_at") or exam.ends_at,
-                    "is_active": True,
-                    "assigned_by": request.user,
-                },
-            )
+            assignment = ExamAssignment.objects.filter(exam=exam, student=student, is_active=True).first()
+            was_created = assignment is None
+            if assignment is None:
+                assignment = ExamAssignment(exam=exam, student=student)
+            assignment.classroom = classroom
+            assignment.available_from = request.data.get("available_from") or timezone.now()
+            assignment.due_at = request.data.get("due_at") or exam.ends_at
+            assignment.is_active = True
+            assignment.assigned_by = request.user
+            assignment.save()
             created += int(was_created)
         return response.Response({
             "detail": f"{classroom.name} sinfiga test biriktirildi.",
@@ -157,17 +156,18 @@ class ExamViewSet(viewsets.ModelViewSet):
         if delivery_mode not in ExamAssignment.DeliveryMode.values:
             return response.Response({"detail": "Test topshirish rejimi noto‘g‘ri."}, status=status.HTTP_400_BAD_REQUEST)
 
-        assignment, created = ExamAssignment.objects.update_or_create(
-            exam=exam,
-            student=student,
-            defaults={
-                "classroom": classroom,
-                "is_active": True,
-                "assigned_by": request.user,
-                "delivery_mode": delivery_mode,
-                "administered_by": request.user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None,
-            },
+        assignment = ExamAssignment.objects.filter(exam=exam, student=student, is_active=True).first()
+        created = assignment is None
+        if assignment is None:
+            assignment = ExamAssignment(exam=exam, student=student)
+        assignment.classroom = classroom
+        assignment.is_active = True
+        assignment.assigned_by = request.user
+        assignment.delivery_mode = delivery_mode
+        assignment.administered_by = (
+            request.user if delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED else None
         )
+        assignment.save()
         if profile:
             profile.status = profile.Status.TEST_ASSIGNED
             profile.save(update_fields=["status", "updated_at"])
@@ -177,4 +177,3 @@ class ExamViewSet(viewsets.ModelViewSet):
             "student": student.full_name,
             "delivery_mode": assignment.delivery_mode,
         })
-

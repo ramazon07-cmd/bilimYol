@@ -49,7 +49,11 @@ class ExamAssignment(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["exam", "student"], name="unique_exam_student_assignment")
+            models.UniqueConstraint(
+                fields=["exam", "student"],
+                condition=models.Q(is_active=True),
+                name="unique_active_exam_student_assignment",
+            )
         ]
         ordering = ["-created_at"]
 

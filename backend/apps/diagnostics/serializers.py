@@ -152,11 +152,167 @@ class DiagnosticReportSerializer(serializers.ModelSerializer):
     roadmap = RoadmapSerializer(read_only=True)
     student = UserSerializer(source="attempt.assignment.student", read_only=True)
     exam = ExamSerializer(source="attempt.assignment.exam", read_only=True)
+    grade = serializers.SerializerMethodField()
+    classroom = serializers.SerializerMethodField()
+    answer_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = DiagnosticReport
         fields = [
             "id", "attempt", "student", "exam", "overall_score", "range_low", "range_high",
             "expected_score", "readiness", "summary", "subject_results", "topic_results",
-            "skill_results", "roadmap", "generated_at",
+            "skill_results", "roadmap", "grade", "classroom", "answer_summary", "generated_at",
+        ]
+
+    def get_grade(self, obj):
+        assignment = obj.attempt.assignment
+        profile = getattr(assignment.student, "student_profile", None)
+        return getattr(profile, "grade", None) or assignment.exam.grade
+
+    def get_classroom(self, obj):
+        assignment = obj.attempt.assignment
+        classroom = assignment.classroom
+        if classroom is None:
+            classroom = assignment.student.classrooms.filter(is_active=True).first()
+        if classroom is None:
+            return None
+        return {"id": classroom.id, "name": classroom.name, "grade": classroom.grade}
+
+    def get_answer_summary(self, obj):
+        attempt = obj.attempt
+        exam_questions = list(attempt.assignment.exam.exam_questions.all())
+        answers = list(attempt.answers.all())
+        correct = sum(1 for item in answers if item.is_correct)
+        answered = len(answers)
+        return {
+            "total": len(exam_questions),
+            "correct": correct,
+            "incorrect": answered - correct,
+            "unanswered": max(0, len(exam_questions) - answered),
+        }
+
+
+class DiagnosticReportDetailSerializer(DiagnosticReportSerializer):
+    attempt_detail = serializers.SerializerMethodField()
+    question_review = serializers.SerializerMethodField()
+    strengths = serializers.SerializerMethodField()
+    weaknesses = serializers.SerializerMethodField()
+    previous_attempts = serializers.SerializerMethodField()
+
+    class Meta(DiagnosticReportSerializer.Meta):
+        fields = DiagnosticReportSerializer.Meta.fields + [
+            "attempt_detail", "question_review", "strengths", "weaknesses", "previous_attempts",
+        ]
+
+    def get_attempt_detail(self, obj):
+        attempt = obj.attempt
+        assignment = attempt.assignment
+        return {
+            "id": attempt.id,
+            "assignment_id": assignment.id,
+            "status": attempt.status,
+            "started_at": attempt.started_at,
+            "submitted_at": attempt.submitted_at,
+            "expires_at": attempt.expires_at,
+            "started_by": getattr(attempt.started_by, "full_name", None),
+            "submitted_by": getattr(attempt.submitted_by, "full_name", None),
+            "earned_points": attempt.earned_points,
+            "delivery_mode": assignment.delivery_mode,
+        }
+
+    def get_question_review(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        can_see_answer_key = bool(
+            getattr(user, "is_superuser", False)
+            or getattr(user, "role", None) in {"admin", "teacher"}
+        )
+        answers = {item.exam_question_id: item for item in obj.attempt.answers.all()}
+        rows = []
+        for exam_question in obj.attempt.assignment.exam.exam_questions.all():
+            question = exam_question.question
+            answer = answers.get(exam_question.id)
+            selected = answer.selected_option if answer else None
+            correct = next((option for option in question.options.all() if option.is_correct), None)
+            row = {
+                "exam_question_id": exam_question.id,
+                "code": question.code,
+                "prompt": question.prompt,
+                "subject": {
+                    "id": question.subject_id,
+                    "slug": question.subject.slug,
+                    "title": question.subject.title,
+                },
+                "topic": {"id": question.topic_id, "code": question.topic.code, "title": question.topic.title},
+                "skills": [
+                    {"id": skill.id, "slug": skill.slug, "title": skill.title}
+                    for skill in question.skills.all()
+                ],
+                "difficulty": question.difficulty,
+                "points": exam_question.points,
+                "selected_option": (
+                    {"id": selected.id, "label": selected.label, "text": selected.text}
+                    if selected else None
+                ),
+                "is_answered": answer is not None,
+                "is_correct": bool(answer and answer.is_correct),
+                "earned_points": answer.earned_points if answer else 0,
+                "is_flagged": bool(answer and answer.is_flagged),
+                "answered_at": answer.answered_at if answer else None,
+            }
+            if can_see_answer_key:
+                row["correct_option"] = (
+                    {"id": correct.id, "label": correct.label, "text": correct.text}
+                    if correct else None
+                )
+                row["explanation"] = question.explanation
+            rows.append(row)
+        return rows
+
+    def _rank_result(self, obj, reverse):
+        rows = []
+        for item in obj.skill_results.all():
+            rows.append({
+                "kind": "skill",
+                "title": item.skill.title,
+                "subject": item.skill.subject.title,
+                "score": item.score,
+            })
+        for item in obj.topic_results.all():
+            rows.append({
+                "kind": "topic",
+                "title": item.topic.title,
+                "subject": item.topic.subject.title,
+                "score": item.score,
+            })
+        rows.sort(key=lambda item: float(item["score"]), reverse=reverse)
+        return rows
+
+    def get_strengths(self, obj):
+        strong = [item for item in self._rank_result(obj, True) if float(item["score"]) >= 67]
+        return strong[:6]
+
+    def get_weaknesses(self, obj):
+        weak = [item for item in self._rank_result(obj, False) if float(item["score"]) < 67]
+        return weak[:6]
+
+    def get_previous_attempts(self, obj):
+        reports = (
+            DiagnosticReport.objects.filter(attempt__assignment__student=obj.attempt.assignment.student)
+            .exclude(id=obj.id)
+            .select_related("attempt__assignment__exam")
+            .order_by("-generated_at")[:10]
+        )
+        return [
+            {
+                "id": report.id,
+                "attempt_id": report.attempt_id,
+                "exam_id": report.attempt.assignment.exam_id,
+                "exam_title": report.attempt.assignment.exam.title,
+                "overall_score": report.overall_score,
+                "readiness": report.readiness,
+                "generated_at": report.generated_at,
+                "same_exam": report.attempt.assignment.exam_id == obj.attempt.assignment.exam_id,
+            }
+            for report in reports
         ]

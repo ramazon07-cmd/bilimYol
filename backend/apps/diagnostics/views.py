@@ -1,5 +1,8 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Avg, Count
+from datetime import timedelta
+
+from django.db import transaction
+from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from rest_framework import decorators, response, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -10,7 +13,13 @@ from apps.accounts.permissions import IsTeacherOrAdmin
 from apps.academics.models import ExamQuestion, QuestionOption
 
 from .models import DiagnosticReport, ExamAssignment, ExamAttempt, Roadmap, StudentAnswer
-from .serializers import AssignmentSerializer, AttemptSerializer, DiagnosticReportSerializer, RoadmapSerializer
+from .serializers import (
+    AssignmentSerializer,
+    AttemptSerializer,
+    DiagnosticReportDetailSerializer,
+    DiagnosticReportSerializer,
+    RoadmapSerializer,
+)
 from .services import start_attempt, submit_attempt
 
 
@@ -161,18 +170,182 @@ class DiagnosticReportViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DiagnosticReportSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ["readiness", "attempt__assignment__exam", "attempt__assignment__student"]
+    search_fields = [
+        "attempt__assignment__student__full_name",
+        "attempt__assignment__student__username",
+        "attempt__assignment__exam__title",
+    ]
+    ordering_fields = ["generated_at", "overall_score"]
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return DiagnosticReportDetailSerializer
+        return DiagnosticReportSerializer
 
     def get_queryset(self):
         user = self.request.user
         queryset = DiagnosticReport.objects.select_related(
-            "attempt__assignment__student", "attempt__assignment__exam",
+            "attempt__assignment__student", "attempt__assignment__student__student_profile",
+            "attempt__assignment__exam", "attempt__assignment__classroom",
+            "attempt__started_by", "attempt__submitted_by",
         ).prefetch_related(
             "subject_results__subject", "topic_results__topic__subject",
             "skill_results__skill__subject", "roadmap__stages__weekly_tasks",
+            "attempt__assignment__student__classrooms",
+            "attempt__assignment__exam__exam_questions__question__subject",
+            "attempt__assignment__exam__exam_questions__question__topic",
+            "attempt__assignment__exam__exam_questions__question__skills",
+            "attempt__assignment__exam__exam_questions__question__options",
+            "attempt__answers__selected_option",
         )
         if user.is_superuser or user.role == User.Role.ADMIN:
-            return queryset
+            return queryset.distinct()
         return queryset.filter(attempt__assignment__student_id__in=student_ids_for(user)).distinct()
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        params = self.request.query_params
+        grade = params.get("grade")
+        subject = params.get("subject")
+        date_from = params.get("date_from")
+        date_to = params.get("date_to")
+        score_min = params.get("score_min")
+        score_max = params.get("score_max")
+        if grade:
+            try:
+                grade_value = int(grade)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"grade": "Sinf raqami noto‘g‘ri."}) from exc
+            queryset = queryset.filter(
+                Q(attempt__assignment__exam__grade=grade_value)
+                | Q(attempt__assignment__classroom__grade=grade_value)
+                | Q(attempt__assignment__student__student_profile__grade=grade_value)
+            )
+        if subject:
+            if str(subject).isdigit():
+                queryset = queryset.filter(subject_results__subject_id=int(subject))
+            else:
+                queryset = queryset.filter(subject_results__subject__slug=subject)
+        if date_from:
+            queryset = queryset.filter(generated_at__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(generated_at__date__lte=date_to)
+        if score_min:
+            queryset = queryset.filter(overall_score__gte=score_min)
+        if score_max:
+            queryset = queryset.filter(overall_score__lte=score_max)
+        return queryset.distinct()
+
+    def _require_admin(self):
+        user = self.request.user
+        if not (user.is_superuser or user.role == User.Role.ADMIN):
+            raise PermissionDenied("Bu amal faqat administrator uchun.")
+
+    @decorators.action(detail=True, methods=["get"])
+    def compare(self, request, pk=None):
+        self._require_admin()
+        current = self.get_object()
+        other_id = request.query_params.get("other")
+        candidates = DiagnosticReport.objects.filter(
+            attempt__assignment__student=current.attempt.assignment.student
+        ).exclude(id=current.id)
+        if other_id:
+            candidates = candidates.filter(id=other_id)
+        previous = candidates.select_related("attempt__assignment__exam").order_by("-generated_at").first()
+        if previous is None:
+            raise ValidationError("Taqqoslash uchun oldingi urinish topilmadi.")
+
+        def keyed(queryset, relation):
+            return {
+                getattr(item, f"{relation}_id"): {
+                    "title": getattr(item, relation).title,
+                    "score": float(item.score),
+                }
+                for item in queryset.select_related(relation)
+            }
+
+        def delta_rows(current_rows, previous_rows):
+            rows = []
+            for key in sorted(set(current_rows) | set(previous_rows)):
+                current_item = current_rows.get(key)
+                previous_item = previous_rows.get(key)
+                current_score = current_item["score"] if current_item else 0
+                previous_score = previous_item["score"] if previous_item else 0
+                rows.append({
+                    "id": key,
+                    "title": (current_item or previous_item)["title"],
+                    "current_score": current_score,
+                    "previous_score": previous_score,
+                    "delta": round(current_score - previous_score, 2),
+                })
+            return rows
+
+        return response.Response({
+            "current": {
+                "id": current.id,
+                "exam_title": current.attempt.assignment.exam.title,
+                "overall_score": current.overall_score,
+                "generated_at": current.generated_at,
+            },
+            "previous": {
+                "id": previous.id,
+                "exam_title": previous.attempt.assignment.exam.title,
+                "overall_score": previous.overall_score,
+                "generated_at": previous.generated_at,
+            },
+            "overall_delta": round(float(current.overall_score) - float(previous.overall_score), 2),
+            "subjects": delta_rows(
+                keyed(current.subject_results, "subject"),
+                keyed(previous.subject_results, "subject"),
+            ),
+            "topics": delta_rows(
+                keyed(current.topic_results, "topic"),
+                keyed(previous.topic_results, "topic"),
+            ),
+            "skills": delta_rows(
+                keyed(current.skill_results, "skill"),
+                keyed(previous.skill_results, "skill"),
+            ),
+        })
+
+    @decorators.action(detail=True, methods=["post"])
+    @transaction.atomic
+    def reassign(self, request, pk=None):
+        self._require_admin()
+        report = self.get_object()
+        previous_assignment = report.attempt.assignment
+        ExamAssignment.objects.filter(
+            exam=previous_assignment.exam,
+            student=previous_assignment.student,
+            is_active=True,
+        ).update(is_active=False)
+        due_at = timezone.now() + timedelta(days=7)
+        if request.data.get("due_at"):
+            due_at = request.data["due_at"]
+        assignment = ExamAssignment.objects.create(
+            exam=previous_assignment.exam,
+            classroom=previous_assignment.classroom,
+            student=previous_assignment.student,
+            available_from=timezone.now(),
+            due_at=due_at,
+            is_active=True,
+            assigned_by=request.user,
+            delivery_mode=request.data.get("delivery_mode", previous_assignment.delivery_mode),
+            administered_by=(
+                request.user
+                if request.data.get("delivery_mode", previous_assignment.delivery_mode)
+                == ExamAssignment.DeliveryMode.ADMINISTERED
+                else None
+            ),
+        )
+        profile = getattr(previous_assignment.student, "student_profile", None)
+        if profile:
+            profile.status = profile.Status.TEST_ASSIGNED
+            profile.save(update_fields=["status", "updated_at"])
+        return response.Response(
+            AssignmentSerializer(assignment, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class RoadmapViewSet(viewsets.ModelViewSet):

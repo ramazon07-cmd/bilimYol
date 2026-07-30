@@ -781,7 +781,8 @@ function ReportApp({
   const activeSubject = useMemo(() => displaySubjects.find((subject) => subject.id === active), [active, displaySubjects]);
   const hideUniversity = resultOnly || Boolean(miniExamResult);
   const reportCandidateName = miniExamResult?.candidate ?? liveReport?.student.full_name ?? "Bobur Xasanboyev";
-  const reportGrade = miniExamResult?.grade ?? "8-sinfga nomzod";
+  const reportGrade = miniExamResult?.grade
+    ?? (liveReport?.grade || liveReport?.exam?.grade ? `${liveReport?.grade ?? liveReport?.exam?.grade}-sinf` : "Sinf belgilanmagan");
 
   const selectTab = (id: ReportTab) => {
     setActive(id);

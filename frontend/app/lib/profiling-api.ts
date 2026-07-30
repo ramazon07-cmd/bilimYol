@@ -134,6 +134,7 @@ export type ExamQuestion = {
   order: number;
   question_detail: {
     id: number;
+    context: string;
     prompt: string;
     subject_title: string;
     options: { id: number; label: string; text: string }[];

@@ -795,6 +795,19 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .mini-question-head > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 9px; background: var(--ink); color: #e4bd55; font-family: Georgia, serif; font-size: 14px; }
 .mini-question-head small { color: #a4770e; font-size: 8px; font-weight: 850; text-transform: uppercase; }
 .mini-question-head h3 { margin: 5px 0 0; font-size: 13px; line-height: 1.45; }
+.mini-question-context,
+.admin-question-context {
+  margin: 12px 0 14px;
+  padding: 14px 16px;
+  border-left: 3px solid #65001f;
+  border-radius: 0 10px 10px 0;
+  background: #fff7f9;
+  color: #4d3c42;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.65;
+}
+.admin-question-context { margin: 0; }
 .mini-question-options { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .mini-question-options button { min-height: 48px; padding: 8px 12px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 9px; border: 1px solid #e0e4e9; border-radius: 9px; background: #fafbfc; color: #596677; text-align: left; cursor: pointer; font-size: 10px; transition: border .15s ease, background .15s ease, transform .15s ease; }
 .mini-question-options button:hover { border-color: #c6a34a; transform: translateY(-1px); }
@@ -2436,3 +2449,161 @@ button { line-height: 1.2; }
   }
 }
 /* End BilimYo‘l v6 profile spacing */
+
+/* Admin diagnostic archive and detail */
+.admin-diagnostic-filters {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, minmax(120px, .7fr));
+  gap: 12px;
+  padding: 18px 22px;
+  border-top: 1px solid #edf0f2;
+  border-bottom: 1px solid #edf0f2;
+  background: #fbfcfd;
+}
+
+.admin-diagnostic-filters label { display: grid; gap: 6px; }
+.admin-diagnostic-filters label > span { color: #7d8794; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.admin-diagnostic-filters label > div { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 1px solid #dfe4e8; border-radius: 10px; background: #fff; color: #8a929c; }
+.admin-diagnostic-filters input,
+.admin-diagnostic-filters select { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid #dfe4e8; border-radius: 10px; background: #fff; color: var(--ink); font: inherit; font-size: 11px; outline: none; }
+.admin-diagnostic-filters label > div input { min-height: 0; padding: 0; border: 0; border-radius: 0; }
+.admin-diagnostic-filters input:focus,
+.admin-diagnostic-filters select:focus,
+.admin-diagnostic-filters label > div:focus-within { border-color: #680322; box-shadow: 0 0 0 3px rgba(104, 3, 34, .08); }
+.admin-diagnostic-filters button { align-self: end; min-height: 40px; }
+.admin-exam-history .portal-table { min-width: 1260px; }
+.admin-detail-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 12px; border: 1px solid #d8c3cb; border-radius: 9px; background: #fff8fa; color: #680322; font-size: 10px; font-weight: 850; cursor: pointer; }
+.admin-detail-button:hover { border-color: #680322; background: #680322; color: #fff; }
+
+.admin-diagnostic-detail { display: grid; gap: 18px; padding-bottom: 36px; }
+.admin-detail-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.admin-detail-toolbar > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.admin-detail-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 24px 28px; overflow: hidden; background: linear-gradient(135deg, #fff 0%, #fff8fa 58%, #f6e8ed 100%); border-color: #e4d2d9; }
+.admin-detail-student { display: flex; align-items: center; gap: 15px; min-width: 0; }
+.admin-detail-student > span { display: grid; flex: 0 0 50px; width: 50px; height: 50px; place-items: center; border-radius: 15px; background: #680322; color: #fff; }
+.admin-detail-student small,
+.admin-detail-exam small { color: #9b6a7a; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.admin-detail-student h1 { margin: 4px 0; color: #2d1520; font-size: 24px; line-height: 1.1; }
+.admin-detail-student p { margin: 0; color: #747d87; font-size: 12px; }
+.admin-detail-exam { display: grid; max-width: 360px; gap: 6px; padding-left: 22px; border-left: 1px solid #e7d9de; text-align: right; }
+.admin-detail-exam strong { color: #2d1520; font-size: 15px; }
+.admin-detail-exam span { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; color: #7a838e; font-size: 11px; }
+
+.admin-detail-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.admin-detail-metrics article { display: grid; grid-template-columns: 36px 1fr; grid-template-rows: auto auto; column-gap: 12px; min-height: 94px; padding: 18px; }
+.admin-detail-metrics article > span { display: grid; grid-row: 1 / 3; width: 36px; height: 36px; place-items: center; align-self: center; border-radius: 11px; background: #f5e8ed; color: #680322; }
+.admin-detail-metrics article.success > span { background: #eaf6ef; color: #247553; }
+.admin-detail-metrics article.danger > span { background: #fff0f1; color: #b43b49; }
+.admin-detail-metrics article.neutral > span { background: #eef1f4; color: #65717f; }
+.admin-detail-metrics small { align-self: end; color: #7e8791; font-size: 10px; font-weight: 750; text-transform: uppercase; }
+.admin-detail-metrics strong { align-self: start; color: #24151b; font-size: 22px; }
+.admin-detail-two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.admin-detail-section { overflow: hidden; }
+.admin-detail-section > .portal-card-head { min-height: 74px; padding: 18px 22px; border-bottom: 1px solid #edf0f2; }
+.admin-detail-section > .portal-card-head span { font-size: 10px; }
+.admin-detail-section > .portal-card-head h2 { font-size: 19px; }
+.admin-detail-section > .portal-card-head em { font-size: 11px; }
+.admin-subject-result-list { display: grid; padding: 8px 22px 18px; }
+.admin-subject-result-list > div { display: grid; grid-template-columns: 9px 1fr auto; align-items: center; gap: 12px; min-height: 58px; border-bottom: 1px solid #eef0f2; }
+.admin-subject-result-list > div:last-child { border: 0; }
+.admin-subject-result-list > div > span { width: 9px; height: 32px; border-radius: 10px; }
+.admin-subject-result-list div div { display: grid; gap: 4px; }
+.admin-subject-result-list strong { color: #28303a; font-size: 13px; }
+.admin-subject-result-list small { color: #8a929c; font-size: 10px; }
+.admin-subject-result-list em { color: #680322; font-size: 16px; font-style: normal; font-weight: 850; }
+.admin-strength-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 22px; }
+.admin-strength-grid > div { display: flex; flex-direction: column; gap: 9px; }
+.admin-strength-grid > div > strong { margin-bottom: 3px; color: #303944; font-size: 12px; }
+.admin-strength-grid span { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 7px 10px; border-radius: 9px; background: #f1f8f4; color: #306a50; font-size: 11px; font-weight: 750; }
+.admin-strength-grid > div:last-child span { background: #fff3f3; color: #9d3b48; }
+.admin-strength-grid span em { margin-left: auto; font-style: normal; }
+.admin-strength-grid small { color: #8a929c; font-size: 11px; line-height: 1.5; }
+.admin-breakdown-table { min-width: 760px; }
+.admin-breakdown-table th { height: 50px; padding: 0 18px; font-size: 11px; }
+.admin-breakdown-table td { height: 66px; padding: 10px 18px; font-size: 13px; line-height: 1.4; }
+.admin-breakdown-table td:nth-child(2) strong { color: #26303b; font-size: 14px; }
+.admin-breakdown-table td:last-child strong { color: #680322; font-size: 14px; }
+.admin-breakdown-table .role-label { display: inline-flex; align-items: center; min-height: 28px; padding: 5px 10px; font-size: 10px; }
+
+.admin-question-review-list { display: grid; padding: 8px 22px 20px; }
+.admin-question-review-list details { border-bottom: 1px solid #edf0f2; }
+.admin-question-review-list summary { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 68px; cursor: pointer; list-style: none; }
+.admin-question-review-list summary::-webkit-details-marker { display: none; }
+.admin-question-review-list summary > i { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: #eef1f3; color: #65717d; font-size: 10px; font-style: normal; font-weight: 850; }
+.admin-question-review-list summary > i.correct { background: #e8f6ee; color: #257852; }
+.admin-question-review-list summary > i.incorrect { background: #fff0f1; color: #b33a49; }
+.admin-question-review-list summary > div { display: grid; min-width: 0; gap: 4px; }
+.admin-question-review-list summary strong { color: #2d3540; font-size: 12px; }
+.admin-question-review-list summary small { overflow: hidden; color: #8a929c; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-question-review-list summary > em { color: #7b858f; font-size: 10px; font-style: normal; font-weight: 800; text-transform: uppercase; }
+.admin-question-review-body { display: grid; gap: 14px; padding: 0 46px 18px; }
+.admin-question-review-body > p { margin: 0; color: #323b46; font-size: 12px; line-height: 1.6; }
+.admin-question-review-body > div { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.admin-question-review-body > div span { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid #e4e7ea; border-radius: 10px; background: #fafbfc; }
+.admin-question-review-body small { color: #8b949d; font-size: 10px; font-weight: 850; text-transform: uppercase; }
+.admin-question-review-body strong { color: #303844; font-size: 11px; line-height: 1.45; }
+.admin-question-review-body blockquote { margin: 0; padding: 12px 14px; border-left: 3px solid #680322; border-radius: 0 9px 9px 0; background: #fff7f9; color: #6d5961; font-size: 11px; line-height: 1.55; }
+
+.admin-roadmap-stages,
+.admin-attempt-history { display: grid; padding: 8px 22px 20px; }
+.admin-roadmap-stages > div { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 15px 0; border-bottom: 1px solid #edf0f2; }
+.admin-roadmap-stages > div > i { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; background: #680322; color: #fff; font-size: 10px; font-style: normal; font-weight: 850; }
+.admin-roadmap-stages div div { display: grid; gap: 4px; }
+.admin-roadmap-stages strong { color: #2c3540; font-size: 13px; }
+.admin-roadmap-stages small { color: #8a929c; font-size: 10px; }
+.admin-roadmap-stages p { margin: 4px 0 0; color: #6f7984; font-size: 11px; line-height: 1.5; }
+.admin-roadmap-stages > div > em { color: #680322; font-size: 12px; font-style: normal; font-weight: 850; }
+.admin-detail-empty { margin: 0; padding: 24px 22px; color: #8a929c; font-size: 11px; }
+.admin-attempt-history > div { display: grid; grid-template-columns: minmax(0, 1fr) 70px auto auto; align-items: center; gap: 10px; min-height: 64px; border-bottom: 1px solid #edf0f2; }
+.admin-attempt-history div div { display: grid; gap: 4px; }
+.admin-attempt-history strong { color: #2e3742; font-size: 12px; }
+.admin-attempt-history small { color: #8a929c; font-size: 10px; }
+.admin-attempt-history > div > em { color: #680322; font-size: 13px; font-style: normal; font-weight: 850; }
+.admin-comparison { scroll-margin-top: 20px; }
+.admin-comparison .portal-card-head > strong { font-size: 18px; }
+.positive { color: #267b55 !important; }
+.negative { color: #b23b49 !important; }
+.comparison-head { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 18px 22px; background: #fafbfc; color: #5e6975; font-size: 11px; font-weight: 750; }
+.comparison-rows { display: grid; padding: 8px 22px 18px; }
+.comparison-rows > div { display: grid; grid-template-columns: 1fr 120px 65px; align-items: center; gap: 12px; min-height: 48px; border-bottom: 1px solid #edf0f2; }
+.comparison-rows strong { color: #303944; font-size: 11px; }
+.comparison-rows span { color: #7b858f; font-size: 11px; }
+.comparison-rows em { font-size: 11px; font-style: normal; font-weight: 850; text-align: right; }
+
+@media (max-width: 1100px) {
+  .admin-diagnostic-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .admin-diagnostic-filters .wide { grid-column: span 2; }
+  .admin-detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-detail-two-column { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .admin-diagnostic-filters { grid-template-columns: 1fr 1fr; padding: 16px; }
+  .admin-diagnostic-filters .wide { grid-column: 1 / -1; }
+  .admin-detail-toolbar,
+  .admin-detail-hero { align-items: stretch; flex-direction: column; }
+  .admin-detail-toolbar > div { justify-content: stretch; }
+  .admin-detail-toolbar button { flex: 1 1 auto; }
+  .admin-detail-exam { max-width: none; padding: 14px 0 0; border-top: 1px solid #e7d9de; border-left: 0; text-align: left; }
+  .admin-detail-exam span { justify-content: flex-start; }
+  .admin-detail-metrics { grid-template-columns: 1fr 1fr; }
+  .admin-strength-grid,
+  .admin-question-review-body > div { grid-template-columns: 1fr; }
+  .admin-attempt-history > div { grid-template-columns: 1fr auto; padding: 12px 0; }
+  .admin-attempt-history button { width: 100%; }
+  .admin-question-review-body { padding-left: 0; padding-right: 0; }
+}
+
+@media print {
+  body:has(.admin-diagnostic-detail) .portal-sidebar,
+  body:has(.admin-diagnostic-detail) .portal-mobile-topbar,
+  body:has(.admin-diagnostic-detail) .admin-detail-toolbar,
+  body:has(.admin-diagnostic-detail) .admin-flow-message,
+  body:has(.admin-diagnostic-detail) .admin-attempt-history button { display: none !important; }
+  body:has(.admin-diagnostic-detail) .portal-shell,
+  body:has(.admin-diagnostic-detail) .portal-main,
+  body:has(.admin-diagnostic-detail) .portal-content { display: block; min-height: 0; padding: 0; background: #fff; }
+  .admin-diagnostic-detail { gap: 10px; }
+  .admin-diagnostic-detail .portal-card { break-inside: avoid; box-shadow: none; }
+  .admin-question-review-list details { break-inside: avoid; }
+}

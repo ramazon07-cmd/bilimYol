@@ -9,7 +9,7 @@ from apps.accounts.models import Classroom, ParentStudent
 from apps.academics.models import Exam, Question
 from apps.pathways.models import Certificate, UniversityGoal
 
-from .models import DiagnosticReport, ExamAssignment
+from .models import DiagnosticReport, ExamAssignment, ExamAttempt
 
 
 User = get_user_model()
@@ -267,6 +267,92 @@ class BilimYolApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         goal.refresh_from_db()
         self.assertNotEqual(goal.student_id, outsider.id)
+
+    def test_admin_report_detail_contains_saved_answers_and_analysis(self):
+        report = DiagnosticReport.objects.get()
+        self.authenticate("admin", "admin12345")
+        response = self.client.get(f"/api/reports/{report.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(response.data["answer_summary"]["total"], 0)
+        self.assertEqual(
+            response.data["answer_summary"]["total"],
+            len(response.data["question_review"]),
+        )
+        self.assertIn("selected_option", response.data["question_review"][0])
+        self.assertIn("correct_option", response.data["question_review"][0])
+        self.assertIn("attempt_detail", response.data)
+        self.assertIn("strengths", response.data)
+        self.assertIn("weaknesses", response.data)
+
+    def test_student_report_detail_does_not_expose_answer_key(self):
+        report = DiagnosticReport.objects.get()
+        self.authenticate()
+        response = self.client.get(f"/api/reports/{report.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("correct_option", response.data["question_review"][0])
+        self.assertNotIn("explanation", response.data["question_review"][0])
+
+    def test_admin_can_filter_reports_by_grade_subject_and_score(self):
+        self.authenticate("admin", "admin12345")
+        matching = self.client.get("/api/reports/?grade=8&subject=math&score_min=40&score_max=50")
+        wrong_grade = self.client.get("/api/reports/?grade=5")
+        self.assertEqual(matching.status_code, 200)
+        self.assertEqual(matching.data["count"], 1)
+        self.assertEqual(wrong_grade.status_code, 200)
+        self.assertEqual(wrong_grade.data["count"], 0)
+
+    def test_admin_reassigns_without_deleting_historical_report(self):
+        report = DiagnosticReport.objects.get()
+        old_assignment = report.attempt.assignment
+        self.authenticate("admin", "admin12345")
+        response = self.client.post(f"/api/reports/{report.id}/reassign/", {}, format="json")
+        self.assertEqual(response.status_code, 201)
+        old_assignment.refresh_from_db()
+        self.assertFalse(old_assignment.is_active)
+        self.assertTrue(
+            ExamAssignment.objects.filter(
+                id=response.data["id"],
+                exam=old_assignment.exam,
+                student=old_assignment.student,
+                is_active=True,
+            ).exists()
+        )
+        self.assertTrue(DiagnosticReport.objects.filter(id=report.id).exists())
+
+    def test_admin_can_compare_two_attempts_for_same_student(self):
+        original = DiagnosticReport.objects.get()
+        old_assignment = original.attempt.assignment
+        old_assignment.is_active = False
+        old_assignment.save(update_fields=["is_active"])
+        new_assignment = ExamAssignment.objects.create(
+            exam=old_assignment.exam,
+            student=old_assignment.student,
+            classroom=old_assignment.classroom,
+            assigned_by=old_assignment.assigned_by,
+            is_active=True,
+        )
+        attempt = ExamAttempt.objects.create(
+            assignment=new_assignment,
+            status=ExamAttempt.Status.SUBMITTED,
+            expires_at=timezone.now(),
+            submitted_at=timezone.now(),
+            overall_score=60,
+            earned_points=2,
+            is_ready=False,
+        )
+        current = DiagnosticReport.objects.create(
+            attempt=attempt,
+            overall_score=60,
+            range_low=57,
+            range_high=63,
+            expected_score=60,
+            readiness=DiagnosticReport.Readiness.NOT_READY,
+        )
+        self.authenticate("admin", "admin12345")
+        response = self.client.get(f"/api/reports/{current.id}/compare/?other={original.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["previous"]["id"], original.id)
+        self.assertEqual(response.data["overall_delta"], 18.75)
 
     @override_settings(DEBUG=False)
     def test_seed_demo_is_blocked_outside_debug(self):

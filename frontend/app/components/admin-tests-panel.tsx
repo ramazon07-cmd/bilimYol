@@ -4,17 +4,27 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock3,
+  Eye,
   GraduationCap,
   LoaderCircle,
   Play,
   RotateCcw,
   Save,
+  Search,
+  SlidersHorizontal,
   UserRound,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiRequest, hasLiveApi, type LiveDiagnosticReport, type PaginatedResponse } from "../lib/api";
+import {
+  apiRequest,
+  hasLiveApi,
+  type LiveDiagnosticReport,
+  type LiveDiagnosticReportDetail,
+  type PaginatedResponse,
+} from "../lib/api";
+import { AdminDiagnosticDetail } from "./admin-diagnostic-detail";
 import {
   getStudentProfiles,
   recommendStudentTests,
@@ -37,6 +47,7 @@ type AssignmentResponse = {
 type AttemptResponse = {
   id: number;
   remaining_seconds: number;
+  question_order: number[];
 };
 
 const statusLabel: Record<string, string> = {
@@ -48,6 +59,17 @@ const statusLabel: Record<string, string> = {
   active: "Faol",
 };
 
+const initialFilters = {
+  search: "",
+  grade: "",
+  subject: "",
+  readiness: "",
+  scoreMin: "",
+  scoreMax: "",
+  dateFrom: "",
+  dateTo: "",
+};
+
 export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = null, onComplete }: Props) {
   const [profiles, setProfiles] = useState<StudentProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(initialSelectedProfileId);
@@ -56,13 +78,56 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
   const [assignmentId, setAssignmentId] = useState<number | null>(null);
   const [attemptId, setAttemptId] = useState<number | null>(null);
+  const [questionOrder, setQuestionOrder] = useState<number[]>([]);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [history, setHistory] = useState<LiveDiagnosticReport[]>([]);
   const [historyError, setHistoryError] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [filters, setFilters] = useState(initialFilters);
+  const [selectedReport, setSelectedReport] = useState<LiveDiagnosticReportDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  const loadHistory = async (nextFilters = filters) => {
+    setHistoryLoading(true);
+    const query = new URLSearchParams({ page_size: "100", ordering: "-generated_at" });
+    if (nextFilters.search) query.set("search", nextFilters.search);
+    if (nextFilters.grade) query.set("grade", nextFilters.grade);
+    if (nextFilters.subject) query.set("subject", nextFilters.subject);
+    if (nextFilters.readiness) query.set("readiness", nextFilters.readiness);
+    if (nextFilters.scoreMin) query.set("score_min", nextFilters.scoreMin);
+    if (nextFilters.scoreMax) query.set("score_max", nextFilters.scoreMax);
+    if (nextFilters.dateFrom) query.set("date_from", nextFilters.dateFrom);
+    if (nextFilters.dateTo) query.set("date_to", nextFilters.dateTo);
+    try {
+      const reportPayload = await apiRequest<PaginatedResponse<LiveDiagnosticReport> | LiveDiagnosticReport[]>(
+        `/reports/?${query.toString()}`,
+      );
+      setHistory(Array.isArray(reportPayload) ? reportPayload : reportPayload.results ?? []);
+      setHistoryError("");
+    } catch {
+      setHistory([]);
+      setHistoryError("Diagnostika tarixini hozir yuklab bo‘lmadi.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openReportDetail = async (reportId: number) => {
+    setDetailLoading(true);
+    setError("");
+    try {
+      const detail = await apiRequest<LiveDiagnosticReportDetail>(`/reports/${reportId}/`);
+      setSelectedReport(detail);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Diagnostika tafsilotlarini ochib bo‘lmadi.");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!hasLiveApi()) return;
@@ -79,15 +144,8 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
       })
       .catch((requestError: Error) => setError(requestError.message));
 
-    apiRequest<PaginatedResponse<LiveDiagnosticReport> | LiveDiagnosticReport[]>("/reports/?page_size=10")
-      .then((reportPayload) => {
-        setHistory(Array.isArray(reportPayload) ? reportPayload : reportPayload.results ?? []);
-        setHistoryError("");
-      })
-      .catch(() => {
-        setHistory([]);
-        setHistoryError("So‘nggi natijalarni hozir yuklab bo‘lmadi.");
-      });
+    const historyTimer = window.setTimeout(() => void loadHistory(initialFilters), 0);
+    return () => window.clearTimeout(historyTimer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedProfile = useMemo(
@@ -98,8 +156,21 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
     () => recommendedExams.find((item) => item.id === selectedExamId) ?? null,
     [recommendedExams, selectedExamId],
   );
+  const orderedExamQuestions = useMemo(() => {
+    if (!activeExam) return [];
+    if (questionOrder.length === 0) return activeExam.exam_questions;
+    const questionById = new Map(activeExam.exam_questions.map((item) => [item.id, item]));
+    const ordered = questionOrder
+      .map((itemId) => questionById.get(itemId))
+      .filter((item): item is Exam["exam_questions"][number] => Boolean(item));
+    const orderedIds = new Set(ordered.map((item) => item.id));
+    return [
+      ...ordered,
+      ...activeExam.exam_questions.filter((item) => !orderedIds.has(item.id)),
+    ];
+  }, [activeExam, questionOrder]);
   const answeredCount = Object.keys(answers).length;
-  const totalQuestions = activeExam?.exam_questions.length ?? 0;
+  const totalQuestions = orderedExamQuestions.length;
 
   const resetFlow = () => {
     setRecommendedExams([]);
@@ -107,6 +178,7 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
     setActiveExam(null);
     setAssignmentId(null);
     setAttemptId(null);
+    setQuestionOrder([]);
     setAnswers({});
     setError("");
     setNotice("");
@@ -189,6 +261,7 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
     try {
       const attempt = await apiRequest<AttemptResponse>(`/assignments/${assignmentId}/start/`, { method: "POST" });
       setAttemptId(attempt.id);
+      setQuestionOrder(attempt.question_order);
       setAnswers({});
       setError("");
       setNotice("Imtihon boshlandi. Har bir tanlov backendga darhol saqlanadi.");
@@ -254,6 +327,18 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
         <h2>Real diagnostika uchun API kerak</h2>
         <p><code>NEXT_PUBLIC_API_BASE_URL</code> ni backend manziliga sozlang.</p>
       </article>
+    );
+  }
+
+  if (selectedReport) {
+    return (
+      <AdminDiagnosticDetail
+        report={selectedReport}
+        onBack={() => setSelectedReport(null)}
+        onOpenStudentView={onComplete}
+        onOpenAttempt={openReportDetail}
+        onReassigned={() => void loadHistory()}
+      />
     );
   }
 
@@ -362,13 +447,17 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
           </div>
 
           <div className="admin-question-stack">
-            {activeExam.exam_questions.map((examQuestion, index) => {
+            {orderedExamQuestions.map((examQuestion, index) => {
               const question = examQuestion.question_detail;
               return (
                 <article className="portal-card mini-question-card" key={examQuestion.id}>
                   <div className="mini-question-head">
                     <span>{index + 1}</span>
-                    <div><small>{question.subject_title}</small><h3>{question.prompt}</h3></div>
+                    <div>
+                      <small>{question.subject_title}</small>
+                      {question.context && <blockquote className="mini-question-context">{question.context}</blockquote>}
+                      <h3>{question.prompt}</h3>
+                    </div>
                     {savingQuestion === examQuestion.id && <LoaderCircle className="spin" size={18} />}
                   </div>
                   <div className="mini-question-options">
@@ -399,24 +488,44 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
         </section>
       )}
 
-      {!attemptId && historyError && history.length === 0 && (
-        <div className="admin-history-note">{historyError} Test biriktirish va topshirish jarayoni ishlashda davom etadi.</div>
-      )}
-
-      {!attemptId && history.length > 0 && (
+      {!attemptId && (
         <article className="portal-card admin-exam-history">
-          <div className="portal-card-head"><div><span>So‘nggi natijalar</span><h2>Backendda saqlangan diagnostikalar</h2></div></div>
+          <div className="portal-card-head"><div><span>Diagnostika tarixi</span><h2>Backendda saqlangan natijalar</h2></div><em>{history.length} ta natija</em></div>
+          <form
+            className="admin-diagnostic-filters"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void loadHistory();
+            }}
+          >
+            <label className="wide"><span>Student yoki test</span><div><Search size={15} /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Ism, login yoki test nomi" /></div></label>
+            <label><span>Sinf</span><select value={filters.grade} onChange={(event) => setFilters((current) => ({ ...current, grade: event.target.value }))}><option value="">Barchasi</option>{[5, 6, 7, 8, 9, 10, 11].map((grade) => <option key={grade} value={grade}>{grade}-sinf</option>)}</select></label>
+            <label><span>Fan</span><select value={filters.subject} onChange={(event) => setFilters((current) => ({ ...current, subject: event.target.value }))}><option value="">Barcha fanlar</option><option value="english">English</option><option value="math">Mathematics</option><option value="iq">IQ/Critical Thinking</option></select></label>
+            <label><span>Natija</span><select value={filters.readiness} onChange={(event) => setFilters((current) => ({ ...current, readiness: event.target.value }))}><option value="">Barchasi</option><option value="ready">Tayyor</option><option value="not_ready">Tayyor emas</option></select></label>
+            <label><span>Min. ball</span><input type="number" min="0" max="100" value={filters.scoreMin} onChange={(event) => setFilters((current) => ({ ...current, scoreMin: event.target.value }))} /></label>
+            <label><span>Max. ball</span><input type="number" min="0" max="100" value={filters.scoreMax} onChange={(event) => setFilters((current) => ({ ...current, scoreMax: event.target.value }))} /></label>
+            <label><span>Boshlanish sana</span><input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} /></label>
+            <label><span>Tugash sana</span><input type="date" value={filters.dateTo} onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))} /></label>
+            <button type="submit" className="portal-primary" disabled={historyLoading}>{historyLoading ? <LoaderCircle className="spin" size={16} /> : <SlidersHorizontal size={16} />} Filterlash</button>
+            <button type="button" className="portal-secondary" onClick={() => { setFilters(initialFilters); void loadHistory(initialFilters); }}>Tozalash</button>
+          </form>
+
+          {historyError && <div className="admin-history-note">{historyError}</div>}
+          {!historyError && !historyLoading && history.length === 0 && <div className="admin-history-note">Tanlangan filterlar bo‘yicha diagnostika topilmadi.</div>}
           <div className="portal-table-wrap">
             <table className="portal-table">
-              <thead><tr><th>O‘quvchi</th><th>Test</th><th>Natija</th><th>Tayyorlik</th><th>Roadmap</th></tr></thead>
+              <thead><tr><th>O‘quvchi</th><th>Sinf</th><th>Test va fanlar</th><th>Sana</th><th>Natija</th><th>Javoblar</th><th>Holat</th><th>Amal</th></tr></thead>
               <tbody>
                 {history.map((item) => (
                   <tr key={item.id}>
-                    <td><strong>{item.student.full_name}</strong></td>
-                    <td>{item.exam?.title ?? "Diagnostika"}</td>
+                    <td><strong>{item.student.full_name}</strong><small>@{item.student.username}</small></td>
+                    <td><strong>{item.grade ?? item.exam?.grade ?? "—"}-sinf</strong><small>{item.classroom?.name ?? "—"}</small></td>
+                    <td><strong>{item.exam?.title ?? "Diagnostika"}</strong><small>{item.subject_results.map((result) => result.subject.title).join(", ")}</small></td>
+                    <td>{item.generated_at ? new Date(item.generated_at).toLocaleDateString("uz-UZ") : "—"}</td>
                     <td><strong>{Math.round(Number(item.overall_score))}/100</strong></td>
+                    <td>{item.answer_summary ? <><strong>{item.answer_summary.correct} / {item.answer_summary.total}</strong><small>{item.answer_summary.incorrect} noto‘g‘ri · {item.answer_summary.unanswered} javobsiz</small></> : "—"}</td>
                     <td><em className={`table-status ${item.readiness === "ready" ? "ready" : "risk"}`}>{item.readiness === "ready" ? "Tayyor" : "Tayyor emas"}</em></td>
-                    <td>{item.roadmap ? <span className="role-label">{item.roadmap.status}</span> : "—"}</td>
+                    <td><button type="button" className="admin-detail-button" onClick={() => void openReportDetail(item.id)} disabled={detailLoading}>{detailLoading ? <LoaderCircle className="spin" size={15} /> : <Eye size={15} />} Batafsil</button></td>
                   </tr>
                 ))}
               </tbody>
