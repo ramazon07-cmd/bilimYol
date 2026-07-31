@@ -72,16 +72,25 @@ def confidence_for(question_count: int) -> str:
     return "low"
 
 
-def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_exam=False) -> DiagnosticReport:
-    """Score atomically, then build the roadmap in a separate transaction."""
+def submit_attempt(
+    attempt: ExamAttempt,
+    submitted_by=None,
+    *,
+    allow_inactive_exam=False,
+    build_roadmap_after=True,
+    mark_profile=True,
+) -> DiagnosticReport:
+    # Score atomically and optionally finish the student diagnostic flow.
     with transaction.atomic():
         report = _submit_attempt_in_transaction(
             attempt,
             submitted_by=submitted_by,
             allow_inactive_exam=allow_inactive_exam,
+            mark_profile=mark_profile,
         )
 
-    build_roadmap(report)
+    if build_roadmap_after:
+        build_roadmap(report)
     return report
 
 
@@ -90,6 +99,7 @@ def _submit_attempt_in_transaction(
     submitted_by=None,
     *,
     allow_inactive_exam=False,
+    mark_profile=True,
 ) -> DiagnosticReport:
     if attempt.status != ExamAttempt.Status.IN_PROGRESS:
         raise ValidationError("Bu urinish allaqachon yakunlangan.")
@@ -233,7 +243,7 @@ def _submit_attempt_in_transaction(
     ])
 
     profile = getattr(attempt.assignment.student, "student_profile", None)
-    if profile:
+    if profile and mark_profile:
         profile.status = profile.Status.DIAGNOSED
         profile.save(update_fields=["status", "updated_at"])
     return report

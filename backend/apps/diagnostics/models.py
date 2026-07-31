@@ -45,6 +45,11 @@ class ExamAssignment(models.Model):
         blank=True,
         related_name="administered_exam_assignments",
     )
+    # Tests assigned together share one batch. This makes the sequence survive
+    # refreshes and lets the API build one combined report at the end.
+    batch_id = models.UUIDField(null=True, blank=True, db_index=True)
+    batch_order = models.PositiveSmallIntegerField(default=1)
+    batch_size = models.PositiveSmallIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

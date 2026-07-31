@@ -369,6 +369,9 @@ function Overview({
   const weakestSubject = [...subjectList].sort((a, b) => a.score - b.score)[0];
   const singleSubject = subjectList.length === 1 ? subjectList[0] : null;
   const singleSubjectReport = Boolean(liveReport && singleSubject);
+  const activeSubjectCount = subjectList.length;
+  const subjectNames = subjectList.map((subject) => subject.title).join(" va ");
+  const twoSubjectReport = Boolean(liveReport && activeSubjectCount === 2);
   const levelText = overallScore < 35 ? "sayoz" : overallScore < 50 ? "zaif" : overallScore < 67 ? "o‘rtacha" : overallScore < 84 ? "yaxshi" : "juda yaxshi";
   const scoreRangeLow = miniResult ? Math.max(overallScore - 3, 0) : liveReport ? Math.round(Number(liveReport.range_low)) : 38;
   const scoreRangeHigh = miniResult ? Math.min(overallScore + 3, 100) : liveReport ? Math.round(Number(liveReport.range_high)) : 44;
@@ -376,8 +379,8 @@ function Overview({
 
   const subjectWeight = (subject: Subject) => {
     if (singleSubjectReport) return 100;
-    if (!miniResult) return subject.id === "critical" ? 30 : 35;
-    return subject.id === "math" ? 40 : 30;
+    if (twoSubjectReport && ["math", "english"].includes(subject.id)) return 50;
+    return activeSubjectCount > 0 ? 100 / activeSubjectCount : 0;
   };
 
   return (
@@ -388,29 +391,21 @@ function Overview({
           <div className="hero-brand"><RbisBrand inverse /><span /> <em>Biz ilmga sodiqmiz</em></div>
           <span className="hero-kicker">{miniResult ? "Administrator o‘tkazgan qabul mini-imtihoni" : singleSubjectReport ? `${singleSubject?.title} diagnostikasi` : "Prezident maktabiga kirish diagnostikasi"}</span>
           <h1>Umumiy diagnostik<br />xulosa</h1>
-          <p>{singleSubjectReport ? `${singleSubject?.title} darajasi, mavzular va ko‘nikmalar — bir qarashda.` : "IQ, matematika va ingliz tili — bir qarashda."}</p>
+          <p>{singleSubjectReport ? `${singleSubject?.title} darajasi, mavzular va ko‘nikmalar — bir qarashda.` : `${subjectNames || "Matematika va Ingliz tili"} — bir qarashda.`}</p>
           <div className="candidate-meta">
             <span><small>Nomzod</small>{candidateName}</span>
             <span><small>Sinf</small>{candidateGrade}</span>
-            <span><small>Imtihon</small>{miniResult ? "3 fan · jami 10 savol" : singleSubjectReport ? `${singleSubject?.title} · 100 ball` : "3 fan · har biri 100 ball"}</span>
+            <span><small>Imtihon</small>{singleSubjectReport ? `${singleSubject?.title} · 100 ball` : `${activeSubjectCount || 2} fan · har biri 100 ball`}</span>
           </div>
           <div className="hero-score-card">
-            <div className="hero-score"><strong>{overallScore}</strong><span>/100</span><em>{miniResult ? "10 savollik mini-imtihon" : singleSubjectReport ? `${singleSubject?.title} natijasi` : "3 fan o‘rtachasi"}</em></div>
+            <div className="hero-score"><strong>{overallScore}</strong><span>/100</span><em>{singleSubjectReport ? `${singleSubject?.title} natijasi` : `${activeSubjectCount || 2} fan o‘rtachasi`}</em></div>
             <div className="hero-subject-scores">{subjectList.map((subject) => <span key={subject.id}><strong>{subject.score}</strong>{subject.title}</span>)}</div>
             <div className="hero-mini-facts">
-              {miniResult ? (
-                <>
-                  <span><strong>{correctAnswers}/10</strong>to‘g‘ri javob</span>
-                  <span><strong>60 ball</strong>o‘tish chegarasi</span>
-                  <span><strong>3 fan</strong>umumiy tahlil</span>
-                </>
-              ) : (
-                <>
-                  <span><strong>{liveReport?.answer_summary ? `${liveReport.answer_summary.correct}/${liveReport.answer_summary.total}` : "—"}</strong>to‘g‘ri javob</span>
-                  <span><strong>{liveReport?.subject_results[0]?.level ?? "—"}</strong>{singleSubject?.title ?? "Fan"} daraja</span>
-                  <span><strong>{subjectList.length}</strong>faol fan</span>
-                </>
-              )}
+              <>
+                <span><strong>{liveReport?.answer_summary ? `${liveReport.answer_summary.correct}/${liveReport.answer_summary.total}` : "—"}</strong>to‘g‘ri javob</span>
+                <span><strong>{liveReport?.subject_results[0]?.level ?? "—"}</strong>{singleSubject?.title ?? "Fan"} daraja</span>
+                <span><strong>{activeSubjectCount || 2}</strong>faol fan</span>
+              </>
             </div>
           </div>
         </div>
@@ -440,7 +435,7 @@ function Overview({
           <div className="report-stamp"><FileCheck2 size={20} /><span>Hisobot yaratildi<strong>{createdAt}</strong></span></div>
         </div>
         <div className="level-metrics">
-          <div><span>Umumiy ball</span><strong className="gold-text">{overallScore}<small>/100</small></strong><em>{miniResult ? "10 ta savol natijasi" : singleSubjectReport ? `${singleSubject?.title} testi natijasi` : "Uch fan o‘rtachasi"}</em></div>
+          <div><span>Umumiy ball</span><strong className="gold-text">{overallScore}<small>/100</small></strong><em>{singleSubjectReport ? `${singleSubject?.title} testi natijasi` : `${activeSubjectCount || 2} fan o‘rtachasi`}</em></div>
           <div><span>Taxminiy oraliq</span><strong>{scoreRangeLow}–{scoreRangeHigh}</strong><em>Hisoblashdagi aniqlik</em></div>
           <div><span>Kutilayotgan ball</span><strong className="gold-text">~{expectedScore}</strong><em>Bir xil sharoit saqlansa</em></div>
         </div>
@@ -448,7 +443,7 @@ function Overview({
         <div className="formula-block">
           <div>
             <h3>Umumiy ball qanday hisoblandi?</h3>
-            <p>{miniResult ? "10 savollik mini-imtihondagi fanlar ulushi" : singleSubjectReport ? `${singleSubject?.title} testi 100% og‘irlik bilan hisoblanadi` : "Imtihon uchun tasdiqlangan fanlar og‘irligi"}</p>
+            <p>{singleSubjectReport ? `${singleSubject?.title} testi 100% og‘irlik bilan hisoblanadi` : "Matematika va Ingliz tili teng og‘irlikda hisoblanadi"}</p>
           </div>
           <div className="formula-table">
             {subjectList.map((subject) => {
@@ -465,17 +460,15 @@ function Overview({
             <div className="formula-total"><span>Umumiy ball</span><strong>{overallScore}/100</strong></div>
           </div>
           <p className="formula-note">
-            {miniResult
-              ? "Formula: Matematika 4 savol (40%) + Ingliz tili 3 savol (30%) + IQ 3 savol (30%)."
-              : singleSubjectReport
-                ? `Formula: ${singleSubject?.title} natijasi × 100%.`
-                : "Formula: Matematika × 35% + Ingliz tili × 35% + IQ × 30%."}
+            {singleSubjectReport
+              ? `Formula: ${singleSubject?.title} natijasi × 100%.`
+              : "Formula: Matematika × 50% + Ingliz tili × 50%."}
           </p>
         </div>
       </section>
 
       <section className="section-block subjects-section">
-        <div className="section-number">03</div><h2>{singleSubjectReport ? `${singleSubject?.title} natijasi` : "Uch fan bo‘yicha"}</h2><p>{singleSubjectReport ? "Daraja, ball va asosiy o‘sish yo‘nalishlari." : "Har bir fan — ball, salohiyat va asosiy o‘sish yo‘nalishlari bilan."}</p>
+        <div className="section-number">03</div><h2>{singleSubjectReport ? `${singleSubject?.title} natijasi` : `${activeSubjectCount || 2} fan bo‘yicha`}</h2><p>{singleSubjectReport ? "Daraja, ball va asosiy o‘sish yo‘nalishlari." : "Har bir fan — ball, salohiyat va asosiy o‘sish yo‘nalishlari bilan."}</p>
         <div className="subject-grid">{subjectList.map((subject) => <SubjectCard key={subject.id} subject={subject} onOpen={() => onSelect(subject.id)} />)}</div>
       </section>
     </>
@@ -666,8 +659,10 @@ function ReportApp({
   const displaySubjects = useMemo(() => {
     if (!liveReport) return [];
 
-    return liveReport.subject_results.map((live) => {
-      const subjectId = live.subject.slug === "iq" ? "critical" : live.subject.slug;
+    return liveReport.subject_results
+      .filter((live) => ["math", "english"].includes(live.subject.slug))
+      .map((live) => {
+      const subjectId = live.subject.slug;
       const template = subjects.find((subject) => subject.id === subjectId) ?? subjects[1];
       const skillRows = (liveReport.skill_results ?? [])
         .filter((item) => !live.subject.id || !item.skill?.subject || item.skill.subject === live.subject.id)

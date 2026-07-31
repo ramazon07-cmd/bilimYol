@@ -51,6 +51,15 @@ type StudentAttempt = {
   answers: { exam_question: number; selected_option: number }[];
 };
 
+type SubmitAttemptResponse = LiveDiagnosticReport | {
+  flow: "next_test" | "complete";
+  batch_id: string;
+  report: LiveDiagnosticReport;
+  next_assignment?: LiveAssignment;
+  next_attempt?: StudentAttempt;
+  combined_report?: LiveDiagnosticReportDetail;
+};
+
 const studentNav: NavItem[] = [
   { id: "overview", label: "Bosh sahifa", icon: LayoutDashboard },
   { id: "test", label: "Testlar", icon: ClipboardList },
@@ -58,6 +67,83 @@ const studentNav: NavItem[] = [
   { id: "roadmap", label: "Roadmap", icon: Target },
   { id: "university", label: "Dream University", icon: GraduationCap },
 ];
+
+
+function combineReportSummaries(items: LiveDiagnosticReport[]): LiveDiagnosticReport[] {
+  const groups = new Map<string, LiveDiagnosticReport[]>();
+
+  for (const report of items) {
+    const key = report.batch_id ? `batch:${report.batch_id}` : `report:${report.id}`;
+    groups.set(key, [...(groups.get(key) ?? []), report]);
+  }
+
+  const combined: LiveDiagnosticReport[] = [];
+  for (const rows of groups.values()) {
+    const ordered = [...rows].sort(
+      (a, b) => (a.batch_order ?? 1) - (b.batch_order ?? 1),
+    );
+    const expected = Math.max(...ordered.map((item) => item.batch_size ?? 1));
+
+    // The first subject must not appear as a standalone result while the
+    // second subject is still waiting or in progress.
+    if (ordered[0]?.batch_id && ordered.length < expected) continue;
+    if (ordered.length === 1) {
+      combined.push(ordered[0]);
+      continue;
+    }
+
+    const latest = ordered[ordered.length - 1];
+    const subjects = new Map<string, LiveDiagnosticReport["subject_results"][number]>();
+    let earned = 0;
+    let possible = 0;
+    const answerSummary = { total: 0, correct: 0, incorrect: 0, unanswered: 0 };
+
+    for (const report of ordered) {
+      for (const subject of report.subject_results) {
+        subjects.set(subject.subject.slug, subject);
+        earned += Number(subject.earned_points ?? 0);
+        possible += Number(subject.possible_points ?? 0);
+      }
+      if (report.answer_summary) {
+        answerSummary.total += report.answer_summary.total;
+        answerSummary.correct += report.answer_summary.correct;
+        answerSummary.incorrect += report.answer_summary.incorrect;
+        answerSummary.unanswered += report.answer_summary.unanswered;
+      }
+    }
+
+    const subjectResults = [...subjects.values()];
+    const overall = possible > 0
+      ? Math.round((earned / possible) * 10000) / 100
+      : Math.round(
+          (ordered.reduce((sum, item) => sum + Number(item.overall_score), 0) / ordered.length) * 100,
+        ) / 100;
+    const title = `${subjectResults.map((item) => item.subject.title).join(" + ")} umumiy diagnostikasi`;
+
+    combined.push({
+      ...latest,
+      overall_score: overall,
+      range_low: Math.max(0, overall - 3),
+      range_high: Math.min(100, overall + 3),
+      expected_score: overall,
+      readiness: ordered.every((item) => item.readiness === "ready") ? "ready" : "not_ready",
+      exam: latest.exam ? { ...latest.exam, title } : latest.exam,
+      subject_results: subjectResults,
+      topic_results: ordered.flatMap((item) => item.topic_results ?? []),
+      skill_results: ordered.flatMap((item) => item.skill_results ?? []),
+      answer_summary: answerSummary,
+      batch_size: expected,
+      is_combined: true,
+      component_report_ids: ordered.map((item) => item.id),
+    });
+  }
+
+  return combined.sort((a, b) => {
+    const left = a.generated_at ? new Date(a.generated_at).getTime() : 0;
+    const right = b.generated_at ? new Date(b.generated_at).getTime() : 0;
+    return right - left;
+  });
+}
 
 export function StudentWorkspace({
   session,
@@ -79,6 +165,7 @@ export function StudentWorkspace({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -90,9 +177,14 @@ export function StudentWorkspace({
         apiRequest<PaginatedResponse<LiveDiagnosticReport> | LiveDiagnosticReport[]>("/reports/?page_size=100&ordering=-generated_at"),
         apiRequest<PaginatedResponse<LiveRoadmap> | LiveRoadmap[]>("/roadmaps/?page_size=100&ordering=-updated_at"),
       ]);
-      const nextAssignments = unpackList(assignmentPayload);
+      const nextAssignments = unpackList(assignmentPayload).sort((a, b) => {
+        if (a.batch_id && a.batch_id === b.batch_id) {
+          return (a.batch_order ?? 1) - (b.batch_order ?? 1);
+        }
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
       const nextAttempts = unpackList(attemptPayload);
-      const nextReports = unpackList(reportPayload);
+      const nextReports = combineReportSummaries(unpackList(reportPayload));
       const inProgress = nextAttempts.find((item) => item.status === "in_progress");
       const matchingAssignment = inProgress ? nextAssignments.find((item) => item.id === inProgress.assignment) ?? null : null;
       setAssignments(nextAssignments);
@@ -132,6 +224,7 @@ export function StudentWorkspace({
   const startTest = async (assignment: LiveAssignment) => {
     setLoading(true);
     setError("");
+    setNotice("");
     try {
       const nextAttempt = await apiRequest<StudentAttempt>(`/assignments/${assignment.id}/start/`, { method: "POST" });
       setActiveAssignment(assignment);
@@ -182,13 +275,63 @@ export function StudentWorkspace({
     setSubmitting(true);
     setError("");
     try {
-      const summary = await apiRequest<LiveDiagnosticReport>(`/attempts/${attempt.id}/submit/`, { method: "POST" });
-      const report = await apiRequest<LiveDiagnosticReportDetail>(`/reports/${summary.id}/`);
-      setReports((current) => [report, ...current.filter((item) => item.id !== report.id)]);
-      setAssignments((current) => current.filter((item) => item.id !== activeAssignment?.id));
+      const payload = await apiRequest<SubmitAttemptResponse>(
+        `/attempts/${attempt.id}/submit/`,
+        { method: "POST" },
+      );
+
+      if ("flow" in payload && payload.flow === "next_test") {
+        if (!payload.next_assignment || !payload.next_attempt) {
+          throw new Error("Keyingi test ma’lumotlari serverdan kelmadi.");
+        }
+        setAssignments((current) =>
+          current.filter((item) => item.id !== activeAssignment?.id),
+        );
+        setActiveAssignment(payload.next_assignment);
+        setAttempt(payload.next_attempt);
+        setAnswers(
+          Object.fromEntries(
+            payload.next_attempt.answers.map((answer) => [
+              answer.exam_question,
+              answer.selected_option,
+            ]),
+          ),
+        );
+        setNotice(
+          `${payload.report.exam?.title ?? "Birinchi test"} yakunlandi. ` +
+          `${payload.next_assignment.exam_detail.title} avtomatik boshlandi.`,
+        );
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      let report: LiveDiagnosticReportDetail;
+      if ("flow" in payload) {
+        if (!payload.combined_report) {
+          throw new Error("Umumiy hisobot serverdan kelmadi.");
+        }
+        report = payload.combined_report;
+      } else {
+        report = await apiRequest<LiveDiagnosticReportDetail>(
+          `/reports/${payload.id}/`,
+        );
+      }
+
+      setReports((current) => [
+        report,
+        ...current.filter((item) =>
+          report.batch_id
+            ? item.batch_id !== report.batch_id
+            : item.id !== report.id,
+        ),
+      ]);
+      setAssignments((current) =>
+        current.filter((item) => item.id !== activeAssignment?.id),
+      );
       setAttempt(null);
       setActiveAssignment(null);
       setAnswers({});
+      setNotice("");
       onOpenReport(report);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Test yakunlanmadi.");
@@ -201,7 +344,11 @@ export function StudentWorkspace({
     setLoading(true);
     setError("");
     try {
-      const detail = await apiRequest<LiveDiagnosticReportDetail>(`/reports/${reportId}/`);
+      const summary = reports.find((item) => item.id === reportId);
+      const endpoint = summary?.batch_id && (summary.batch_size ?? 1) > 1
+        ? `/reports/${reportId}/combined/`
+        : `/reports/${reportId}/`;
+      const detail = await apiRequest<LiveDiagnosticReportDetail>(endpoint);
       onOpenReport(detail);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Natija tafsilotlari ochilmadi.");
@@ -250,10 +397,11 @@ export function StudentWorkspace({
   const testContent = (
     <>
       <PageTitle eyebrow="Diagnostik test" title={attempt ? activeAssignment?.exam_detail.title ?? "Diagnostika" : "Biriktirilgan testlar"} description={attempt ? "Har bir javob database’da darhol saqlanadi." : "Admin biriktirgan faol testlar ko‘rsatiladi."} />
+      {notice && <div className="admin-flow-message success">{notice}</div>}
       {error && <div className="admin-flow-message error">{error}</div>}
       {loading && !attempt ? <LoadingState label="Testlar yuklanmoqda..." /> : attempt && activeAssignment ? (
         <section className="student-live-exam">
-          <article className="portal-card student-exam-progress"><div><span>{activeAssignment.exam_detail.title}</span><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong></div><div><Clock3 size={18} /><strong>{Math.max(0, Math.ceil(attempt.remaining_seconds / 60))} daqiqa</strong></div></article>
+          <article className="portal-card student-exam-progress"><div><span>{activeAssignment.batch_size && activeAssignment.batch_size > 1 ? `Test ${activeAssignment.batch_order ?? 1}/${activeAssignment.batch_size} · ` : ""}{activeAssignment.exam_detail.title}</span><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong></div><div><Clock3 size={18} /><strong>{Math.max(0, Math.ceil(attempt.remaining_seconds / 60))} daqiqa</strong></div></article>
           <div className="admin-question-stack">
             {orderedQuestions.map((examQuestion, index) => {
               const question = examQuestion.question_detail;
@@ -265,10 +413,10 @@ export function StudentWorkspace({
               );
             })}
           </div>
-          <article className="portal-card admin-submit-bar"><div><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong><p>Natija yakunlangach kabinetda saqlanadi.</p></div><button className="portal-primary" onClick={() => void submitTest()} disabled={submitting || Object.keys(answers).length !== orderedQuestions.length}>{submitting ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />} Testni yakunlash</button></article>
+          <article className="portal-card admin-submit-bar"><div><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong><p>Natija yakunlangach kabinetda saqlanadi.</p></div><button className="portal-primary" onClick={() => void submitTest()} disabled={submitting || Object.keys(answers).length !== orderedQuestions.length}>{submitting ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />} {(activeAssignment.batch_size ?? 1) > (activeAssignment.batch_order ?? 1) ? "Keyingi testga o‘tish" : "Testlarni yakunlash"}</button></article>
         </section>
       ) : assignments.length ? (
-        <div className="student-assignment-grid">{assignments.map((assignment) => <article className="portal-card student-assignment-card" key={assignment.id}><span><ClipboardList size={24} /></span><div><small>Biriktirilgan test</small><h2>{assignment.exam_detail.title}</h2><p>{assignment.exam_detail.grade}-sinf · {assignment.exam_detail.exam_questions.length} savol · {assignment.exam_detail.duration_minutes} daqiqa</p></div><button className="portal-primary" onClick={() => void startTest(assignment)} disabled={loading}>{loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}{assignment.has_attempt ? "Davom ettirish" : "Boshlash"}</button></article>)}</div>
+        <div className="student-assignment-grid">{assignments.map((assignment) => <article className="portal-card student-assignment-card" key={assignment.id}><span><ClipboardList size={24} /></span><div><small>Biriktirilgan test</small><h2>{assignment.exam_detail.title}</h2><p>{assignment.batch_size && assignment.batch_size > 1 ? `${assignment.batch_order ?? 1}/${assignment.batch_size} test · ` : ""}{assignment.exam_detail.grade}-sinf · {assignment.exam_detail.exam_questions.length} savol · {assignment.exam_detail.duration_minutes} daqiqa</p></div><button className="portal-primary" onClick={() => void startTest(assignment)} disabled={loading}>{loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}{assignment.has_attempt ? "Davom ettirish" : "Boshlash"}</button></article>)}</div>
       ) : <EmptyState title="Faol test yo‘q" description="Admin testni biriktirgandan keyin shu sahifada paydo bo‘ladi." icon={ClipboardList} />}
     </>
   );

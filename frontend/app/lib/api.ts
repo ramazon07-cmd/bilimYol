@@ -59,6 +59,7 @@ export type LiveQuestionReview = {
   is_flagged: boolean;
   answered_at: string | null;
   explanation?: string;
+  exam_title?: string;
 };
 
 export type LivePreviousAttempt = {
@@ -91,6 +92,18 @@ export type LiveReportComparison = {
 
 export type LiveDiagnosticReport = {
   id: number;
+  batch_id?: string | null;
+  batch_order?: number;
+  batch_size?: number;
+  is_combined?: boolean;
+  component_report_ids?: number[];
+  component_reports?: {
+    id: number;
+    exam?: { id: number; title: string; grade: number | null };
+    overall_score: string | number;
+    generated_at?: string;
+    batch_order?: number;
+  }[];
   overall_score: string | number;
   range_low: string | number;
   range_high: string | number;
@@ -279,6 +292,9 @@ export type LiveClassroom = {
 
 export type LiveAssignment = {
   id: number;
+  batch_id?: string | null;
+  batch_order?: number;
+  batch_size?: number;
   exam: number;
   exam_detail: {
     id: number;

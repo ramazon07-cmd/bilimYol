@@ -29,7 +29,8 @@ class AssignmentSerializer(serializers.ModelSerializer):
         fields = [
             "id", "exam", "exam_detail", "classroom", "classroom_detail", "student",
             "student_detail", "available_from", "due_at", "is_active", "delivery_mode",
-            "administered_by", "has_attempt", "created_at",
+            "administered_by", "batch_id", "batch_order", "batch_size",
+            "has_attempt", "created_at",
         ]
         read_only_fields = ["administered_by", "created_at"]
 
@@ -173,13 +174,17 @@ class DiagnosticReportSerializer(serializers.ModelSerializer):
     grade = serializers.SerializerMethodField()
     classroom = serializers.SerializerMethodField()
     answer_summary = serializers.SerializerMethodField()
+    batch_id = serializers.UUIDField(source="attempt.assignment.batch_id", read_only=True)
+    batch_order = serializers.IntegerField(source="attempt.assignment.batch_order", read_only=True)
+    batch_size = serializers.IntegerField(source="attempt.assignment.batch_size", read_only=True)
 
     class Meta:
         model = DiagnosticReport
         fields = [
             "id", "attempt", "student", "exam", "overall_score", "range_low", "range_high",
             "expected_score", "readiness", "summary", "subject_results", "topic_results",
-            "skill_results", "roadmap", "grade", "classroom", "answer_summary", "generated_at",
+            "skill_results", "roadmap", "grade", "classroom", "answer_summary",
+            "batch_id", "batch_order", "batch_size", "generated_at",
         ]
 
     def get_grade(self, obj):

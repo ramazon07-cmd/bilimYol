@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
@@ -320,8 +322,10 @@ class ExamViewSet(viewsets.ModelViewSet):
             allowed_chars="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789",
         )
 
+        batch_id = uuid.uuid4()
+        batch_size = len(exams)
         assigned = []
-        for exam in exams:
+        for batch_order, exam in enumerate(exams, start=1):
             assignment = ExamAssignment.objects.filter(
                 exam=exam,
                 student=student,
@@ -337,12 +341,17 @@ class ExamViewSet(viewsets.ModelViewSet):
             assignment.assigned_by = request.user
             assignment.delivery_mode = ExamAssignment.DeliveryMode.SELF
             assignment.administered_by = None
+            assignment.batch_id = batch_id
+            assignment.batch_order = batch_order
+            assignment.batch_size = batch_size
             assignment.save()
             assigned.append({
                 "assignment": assignment.id,
                 "exam": exam.id,
                 "title": exam.title,
                 "created": created,
+                "batch_order": batch_order,
+                "batch_size": batch_size,
             })
             notify_users(
                 [student],
@@ -363,6 +372,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             {
                 "assignments": assigned,
                 "count": len(assigned),
+                "batch_id": str(batch_id),
                 "student": student.full_name,
                 "credentials": {
                     "username": student.username,

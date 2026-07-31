@@ -57,6 +57,112 @@ def teacher_can_manage_assignment(user, student, classroom=None) -> bool:
     return classrooms.exists()
 
 
+
+
+def _decimal_number(value):
+    from decimal import Decimal
+
+    if value in (None, ""):
+        return Decimal("0")
+    return Decimal(str(value))
+
+
+def _combined_report_payload(reports, request):
+    # Return several reports in the same shape as one detailed report.
+    from decimal import Decimal, ROUND_HALF_UP
+
+    serialized = [
+        dict(DiagnosticReportDetailSerializer(item, context={"request": request}).data)
+        for item in reports
+    ]
+    if not serialized:
+        raise ValidationError("Birlashtirish uchun natija topilmadi.")
+    if len(serialized) == 1:
+        return serialized[0]
+
+    base = dict(serialized[-1])
+    subject_results = []
+    seen_subjects = set()
+    topic_results = []
+    skill_results = []
+    question_review = []
+    strengths = []
+    weaknesses = []
+    total_earned = Decimal("0")
+    total_possible = Decimal("0")
+    answer_summary = {"total": 0, "correct": 0, "incorrect": 0, "unanswered": 0}
+    component_reports = []
+
+    for item in serialized:
+        component_reports.append({
+            "id": item["id"],
+            "exam": item.get("exam"),
+            "overall_score": item.get("overall_score"),
+            "generated_at": item.get("generated_at"),
+            "batch_order": item.get("batch_order"),
+        })
+        for result in item.get("subject_results") or []:
+            slug = result["subject"]["slug"]
+            if slug not in seen_subjects:
+                subject_results.append(result)
+                seen_subjects.add(slug)
+            total_earned += _decimal_number(result.get("earned_points"))
+            total_possible += _decimal_number(result.get("possible_points"))
+        topic_results.extend(item.get("topic_results") or [])
+        skill_results.extend(item.get("skill_results") or [])
+        strengths.extend(item.get("strengths") or [])
+        weaknesses.extend(item.get("weaknesses") or [])
+        summary = item.get("answer_summary") or {}
+        for key in answer_summary:
+            answer_summary[key] += int(summary.get(key) or 0)
+        for row in item.get("question_review") or []:
+            enriched = dict(row)
+            enriched["exam_title"] = (item.get("exam") or {}).get("title")
+            question_review.append(enriched)
+
+    if total_possible:
+        overall = (total_earned / total_possible * Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+    else:
+        overall = (
+            sum((_decimal_number(item.get("overall_score")) for item in serialized), Decimal("0"))
+            / len(serialized)
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    subject_titles = [result["subject"]["title"] for result in subject_results]
+    exam = dict(base.get("exam") or {})
+    exam["title"] = " + ".join(subject_titles) + " umumiy diagnostikasi"
+
+    base.update({
+        "overall_score": overall,
+        "range_low": max(Decimal("0"), overall - Decimal("3")),
+        "range_high": min(Decimal("100"), overall + Decimal("3")),
+        "expected_score": overall,
+        "readiness": (
+            DiagnosticReport.Readiness.READY
+            if all(item.get("readiness") == DiagnosticReport.Readiness.READY for item in serialized)
+            else DiagnosticReport.Readiness.NOT_READY
+        ),
+        "summary": f"{len(serialized)} ta fan testi natijasi bitta hisobotga birlashtirildi.",
+        "exam": exam,
+        "subject_results": subject_results,
+        "topic_results": topic_results,
+        "skill_results": skill_results,
+        "answer_summary": answer_summary,
+        "strengths": sorted(strengths, key=lambda row: float(row["score"]), reverse=True)[:8],
+        "weaknesses": sorted(weaknesses, key=lambda row: float(row["score"]))[:8],
+        "batch_id": serialized[-1].get("batch_id"),
+        "batch_order": serialized[-1].get("batch_order"),
+        "batch_size": len(serialized),
+        "is_combined": True,
+        "component_reports": component_reports,
+    })
+    if any("question_review" in item for item in serialized):
+        base["question_review"] = question_review
+    return base
+
+
 class AssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssignmentSerializer
     permission_classes = [IsAuthenticated]
@@ -201,8 +307,46 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         attempt = self.get_object()
         if not can_operate_exam(request.user, attempt.assignment):
             raise PermissionDenied("Bu urinishni yakunlash huquqiga ega emassiz.")
-        report = submit_attempt(attempt, submitted_by=request.user)
-        student = attempt.assignment.student
+
+        assignment = attempt.assignment
+        next_assignment = None
+        if assignment.batch_id and assignment.batch_size > 1:
+            next_assignment = (
+                ExamAssignment.objects.filter(
+                    student=assignment.student,
+                    batch_id=assignment.batch_id,
+                    is_active=True,
+                    batch_order__gt=assignment.batch_order,
+                )
+                .select_related("exam", "student", "classroom")
+                .order_by("batch_order", "id")
+                .first()
+            )
+
+        report = submit_attempt(
+            attempt,
+            submitted_by=request.user,
+            build_roadmap_after=next_assignment is None,
+            mark_profile=next_assignment is None,
+        )
+        student = assignment.student
+
+        if next_assignment is not None:
+            next_attempt = start_attempt(next_assignment, started_by=request.user)
+            return response.Response({
+                "flow": "next_test",
+                "batch_id": str(assignment.batch_id),
+                "report": DiagnosticReportSerializer(
+                    report, context={"request": request}
+                ).data,
+                "next_assignment": AssignmentSerializer(
+                    next_assignment, context={"request": request}
+                ).data,
+                "next_attempt": AttemptSerializer(
+                    next_attempt, context={"request": request}
+                ).data,
+            })
+
         notify_users(
             family_users(student),
             kind=Notification.Kind.RESULT,
@@ -223,7 +367,42 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
             action_path="classroom",
             metadata={"report_id": report.id, "student_id": student.id},
         )
-        return response.Response(DiagnosticReportSerializer(report, context={"request": request}).data)
+
+        if assignment.batch_id and assignment.batch_size > 1:
+            batch_reports = list(
+                DiagnosticReport.objects.filter(
+                    attempt__assignment__student=student,
+                    attempt__assignment__batch_id=assignment.batch_id,
+                )
+                .select_related(
+                    "attempt__assignment__student",
+                    "attempt__assignment__student__student_profile",
+                    "attempt__assignment__exam",
+                    "attempt__assignment__classroom",
+                    "attempt__started_by",
+                    "attempt__submitted_by",
+                )
+                .prefetch_related(
+                    "subject_results__subject",
+                    "topic_results__topic__subject",
+                    "skill_results__skill__subject",
+                    "roadmap__stages__weekly_tasks",
+                )
+                .order_by("attempt__assignment__batch_order", "id")
+            )
+            combined = _combined_report_payload(batch_reports, request)
+            return response.Response({
+                "flow": "complete",
+                "batch_id": str(assignment.batch_id),
+                "report": DiagnosticReportSerializer(
+                    report, context={"request": request}
+                ).data,
+                "combined_report": combined,
+            })
+
+        return response.Response(
+            DiagnosticReportSerializer(report, context={"request": request}).data
+        )
 
 
 class DiagnosticReportViewSet(viewsets.ReadOnlyModelViewSet):
@@ -295,6 +474,31 @@ class DiagnosticReportViewSet(viewsets.ReadOnlyModelViewSet):
         if score_max:
             queryset = queryset.filter(overall_score__lte=score_max)
         return queryset.distinct()
+
+    @decorators.action(detail=True, methods=["get"], url_path="combined")
+    def combined(self, request, pk=None):
+        report = self.get_object()
+        assignment = report.attempt.assignment
+        if not assignment.batch_id or assignment.batch_size <= 1:
+            return response.Response(
+                DiagnosticReportDetailSerializer(
+                    report, context={"request": request}
+                ).data
+            )
+
+        reports = list(
+            self.get_queryset()
+            .filter(
+                attempt__assignment__student=assignment.student,
+                attempt__assignment__batch_id=assignment.batch_id,
+            )
+            .order_by("attempt__assignment__batch_order", "id")
+        )
+        if len(reports) < assignment.batch_size:
+            raise ValidationError(
+                "Umumiy hisobot barcha biriktirilgan testlar tugagach ochiladi."
+            )
+        return response.Response(_combined_report_payload(reports, request))
 
     def _require_admin(self):
         user = self.request.user
