@@ -127,7 +127,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             notify_users(
                 [student],
                 kind=Notification.Kind.ASSIGNMENT,
-                title="Yangi English testi biriktirildi",
+                title="Yangi diagnostika testi biriktirildi",
                 message=exam.title,
                 action_path="test",
                 metadata={"assignment_id": assignment.id},
@@ -162,9 +162,17 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         profile = getattr(student, "student_profile", None)
         profile_grade = profile.grade if profile else None
-        if exam.grade is not None and profile_grade is not None and exam.grade != profile_grade:
+        classroom_grade = classroom.grade if classroom else None
+        enrolled_grade = student.classrooms.filter(is_active=True).values_list("grade", flat=True).first()
+        student_grade = profile_grade or classroom_grade or enrolled_grade
+        if exam.grade is not None and student_grade is None:
             return response.Response(
-                {"detail": f"Test {exam.grade}-sinf uchun, o‘quvchi esa {profile_grade}-sinfda."},
+                {"detail": "O‘quvchining sinfi belgilanmagan. Avval profil yoki sinfni to‘ldiring."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if exam.grade is not None and exam.grade != student_grade:
+            return response.Response(
+                {"detail": f"Test {exam.grade}-sinf uchun, o‘quvchi esa {student_grade}-sinfda."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -196,7 +204,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         notify_users(
             [student],
             kind=Notification.Kind.ASSIGNMENT,
-            title="Yangi English testi biriktirildi",
+            title="Yangi diagnostika testi biriktirildi",
             message=exam.title,
             action_path="test",
             metadata={"assignment_id": assignment.id},
@@ -211,3 +219,156 @@ class ExamViewSet(viewsets.ModelViewSet):
                 "temporary_password": temporary_password,
             },
         })
+
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsAdminRole],
+        url_path="assign-student-tests",
+    )
+    @transaction.atomic
+    def assign_student_tests(self, request):
+        """Assign several exact-grade diagnostic tests with one shared login password."""
+        # bilimyol-bulk-tests-minimal-login-v5
+        raw_exam_ids = request.data.get("exams") or []
+        student_id = request.data.get("student")
+        classroom_id = request.data.get("classroom")
+        requested_password = str(request.data.get("temporary_password") or "").strip()
+
+        if not isinstance(raw_exam_ids, list) or not raw_exam_ids:
+            return response.Response(
+                {"detail": "Kamida bitta testni tanlang."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            exam_ids = list(dict.fromkeys(int(item) for item in raw_exam_ids))
+        except (TypeError, ValueError):
+            return response.Response(
+                {"detail": "Test IDlari noto‘g‘ri."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(exam_ids) > 10:
+            return response.Response(
+                {"detail": "Bir urinishda 10 tagacha test biriktirish mumkin."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            student = User.objects.get(id=student_id, role=User.Role.STUDENT)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return response.Response(
+                {"detail": "O‘quvchi topilmadi."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        exams_by_id = {
+            exam.id: exam
+            for exam in self.get_queryset().filter(
+                id__in=exam_ids,
+                status__in=[Exam.Status.ACTIVE, Exam.Status.SCHEDULED],
+            )
+        }
+        if len(exams_by_id) != len(exam_ids):
+            return response.Response(
+                {"detail": "Tanlangan testlardan biri topilmadi yoki faol emas."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        exams = [exams_by_id[exam_id] for exam_id in exam_ids]
+
+        classroom = None
+        if classroom_id:
+            try:
+                classroom = Classroom.objects.get(id=classroom_id)
+            except (Classroom.DoesNotExist, ValueError, TypeError):
+                return response.Response(
+                    {"detail": "Sinf topilmadi."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if not classroom.students.filter(id=student.id).exists():
+                return response.Response(
+                    {"detail": "O‘quvchi bu sinfga biriktirilmagan."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        profile = getattr(student, "student_profile", None)
+        profile_grade = profile.grade if profile else None
+        mismatched = [
+            exam.title
+            for exam in exams
+            if exam.grade is not None
+            and profile_grade is not None
+            and exam.grade != profile_grade
+        ]
+        if mismatched:
+            return response.Response(
+                {
+                    "detail": (
+                        f"Tanlangan test o‘quvchining {profile_grade}-sinf bosqichiga mos emas: "
+                        + ", ".join(mismatched)
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if requested_password and len(requested_password) < 8:
+            return response.Response(
+                {"detail": "Vaqtinchalik parol kamida 8 belgidan iborat bo‘lishi kerak."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        temporary_password = requested_password or get_random_string(
+            10,
+            allowed_chars="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789",
+        )
+
+        assigned = []
+        for exam in exams:
+            assignment = ExamAssignment.objects.filter(
+                exam=exam,
+                student=student,
+                is_active=True,
+            ).first()
+            created = assignment is None
+            if assignment is None:
+                assignment = ExamAssignment(exam=exam, student=student)
+            assignment.classroom = classroom
+            assignment.available_from = timezone.now()
+            assignment.due_at = exam.ends_at
+            assignment.is_active = True
+            assignment.assigned_by = request.user
+            assignment.delivery_mode = ExamAssignment.DeliveryMode.SELF
+            assignment.administered_by = None
+            assignment.save()
+            assigned.append({
+                "assignment": assignment.id,
+                "exam": exam.id,
+                "title": exam.title,
+                "created": created,
+            })
+            notify_users(
+                [student],
+                kind=Notification.Kind.ASSIGNMENT,
+                title="Yangi diagnostik test biriktirildi",
+                message=exam.title,
+                action_path="test",
+                metadata={"assignment_id": assignment.id, "exam_id": exam.id},
+            )
+
+        student.set_password(temporary_password)
+        student.save(update_fields=["password"])
+        if profile:
+            profile.status = profile.Status.TEST_ASSIGNED
+            profile.save(update_fields=["status", "updated_at"])
+
+        return response.Response(
+            {
+                "assignments": assigned,
+                "count": len(assigned),
+                "student": student.full_name,
+                "credentials": {
+                    "username": student.username,
+                    "temporary_password": temporary_password,
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+

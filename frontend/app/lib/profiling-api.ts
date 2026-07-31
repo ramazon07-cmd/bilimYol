@@ -137,6 +137,7 @@ export type ExamQuestion = {
     context: string;
     prompt: string;
     subject_title: string;
+    image_url?: string;
     options: { id: number; label: string; text: string }[];
   };
 };

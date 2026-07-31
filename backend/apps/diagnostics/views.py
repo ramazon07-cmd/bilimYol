@@ -83,7 +83,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         student = serializer.validated_data["student"]
         exam = serializer.validated_data["exam"]
         if not is_enabled_diagnostic_exam(exam):
-            raise ValidationError("Hozircha faqat English diagnostik testini biriktirish mumkin.")
+            raise ValidationError("Bu diagnostik test hozir biriktirish uchun faol emas.")
         classroom = serializer.validated_data.get("classroom")
         if user.role == User.Role.TEACHER and not teacher_can_manage_assignment(user, student, classroom):
             raise PermissionDenied("O‘qituvchi faqat o‘z sinfidagi o‘quvchiga imtihon biriktira oladi.")
@@ -95,7 +95,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         notify_users(
             [student],
             kind=Notification.Kind.ASSIGNMENT,
-            title="Yangi English testi biriktirildi",
+            title="Yangi diagnostika testi biriktirildi",
             message=exam.title,
             action_path="test",
             metadata={"assignment_id": assignment.id},
@@ -122,7 +122,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     def start(self, request, pk=None):
         assignment = self.get_object()
         if not is_enabled_diagnostic_exam(assignment.exam):
-            raise ValidationError("Hozircha faqat English diagnostik testi faol.")
+            raise ValidationError("Bu diagnostik test hozir faol emas.")
         if not can_operate_exam(request.user, assignment):
             raise PermissionDenied("Bu imtihonni boshlash huquqiga ega emassiz.")
         if not assignment.is_active:
@@ -147,7 +147,13 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         queryset = ExamAttempt.objects.select_related(
             "assignment__student", "assignment__exam", "started_by", "submitted_by",
-        ).prefetch_related("answers__selected_option", "answers__exam_question__question")
+        )
+        # answer/submit endpointlarida barcha oldingi javoblarni oldindan yuklash
+        # kerak emas. To‘liq prefetch faqat list/retrieve response uchun qoladi.
+        if self.action in {"list", "retrieve"}:
+            queryset = queryset.prefetch_related(
+                "answers__selected_option", "answers__exam_question__question",
+            )
         queryset = queryset.filter(
             assignment__exam_id__in=enabled_diagnostic_exams(
                 Exam.objects.all()
@@ -174,13 +180,21 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
             option = exam_question.question.options.get(id=selected_option_id)
         except (ExamQuestion.DoesNotExist, QuestionOption.DoesNotExist, ValueError, TypeError) as exc:
             raise ValidationError("Savol yoki javob varianti noto‘g‘ri.") from exc
-        StudentAnswer.objects.update_or_create(
+        saved_answer, _ = StudentAnswer.objects.update_or_create(
             attempt=attempt,
             exam_question=exam_question,
             defaults={"selected_option": option, "is_flagged": is_flagged},
         )
-        attempt.refresh_from_db()
-        return response.Response(AttemptSerializer(attempt, context={"request": request}).data)
+        # Frontend answer response ichidagi to‘liq attemptni ishlatmaydi.
+        # Kichik ACK qaytarish har bir autosave’da katta serializer/prefetchni yo‘qotadi.
+        return response.Response({
+            "id": saved_answer.id,
+            "attempt": attempt.id,
+            "exam_question": saved_answer.exam_question_id,
+            "selected_option": saved_answer.selected_option_id,
+            "is_flagged": saved_answer.is_flagged,
+            "answered_at": saved_answer.answered_at,
+        })
 
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
@@ -192,7 +206,7 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         notify_users(
             family_users(student),
             kind=Notification.Kind.RESULT,
-            title="English diagnostika natijasi tayyor",
+            title="Diagnostika natijasi tayyor",
             message=f"{student.full_name}: {report.overall_score}/100",
             action_path="results",
             metadata={"report_id": report.id, "student_id": student.id},
@@ -361,7 +375,7 @@ class DiagnosticReportViewSet(viewsets.ReadOnlyModelViewSet):
         report = self.get_object()
         previous_assignment = report.attempt.assignment
         if not is_enabled_diagnostic_exam(previous_assignment.exam):
-            raise ValidationError("Hozircha faqat English diagnostik testini qayta tayinlash mumkin.")
+            raise ValidationError("Bu diagnostik testni qayta tayinlash mumkin emas.")
         ExamAssignment.objects.filter(
             exam=previous_assignment.exam,
             student=previous_assignment.student,

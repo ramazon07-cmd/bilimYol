@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import {
   ArrowRight,
   BarChart3,
@@ -41,12 +43,10 @@ import {
 } from "./lib/mini-exam";
 import {
   clearApiSession,
-  roleLoginDefaults,
   hasLiveApi,
   loginWorkspace,
   restoreWorkspaceSession,
   type LiveDiagnosticReport,
-  type UserRole,
   type WorkspaceSession,
 } from "./lib/api";
 import { RBIS_COLORS, rbisChartColor } from "./lib/rbis-theme";
@@ -61,6 +61,13 @@ type Question = {
   topic: string;
   skill: string;
   difficulty: "Boshlang‘ich" | "O‘rta" | "Yuqori";
+  prompt?: string;
+  context?: string;
+  imageUrl?: string;
+  selectedAnswer?: string;
+  correctAnswer?: string;
+  explanation?: string;
+  isAnswered?: boolean;
 };
 
 type Subject = {
@@ -246,27 +253,13 @@ const levels = [
 ];
 
 
-type LoginRole = Extract<UserRole, "teacher" | "admin">;
-
-const roleOptions: { id: LoginRole; label: string; description: string; icon: LucideIcon }[] = [
-  { id: "teacher", label: "O‘qituvchi", description: "Sinf diagnostikasi", icon: BookOpenCheck },
-  { id: "admin", label: "Admin", description: "Imtihon boshqaruvi", icon: ShieldCheck },
-];
-
 function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
+  // bilimyol-bulk-tests-minimal-login-v5
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState<LoginRole>("teacher");
-  const [username, setUsername] = useState(roleLoginDefaults.teacher.username);
-  const [password, setPassword] = useState(roleLoginDefaults.teacher.password);
-
-  const chooseRole = (nextRole: LoginRole) => {
-    setRole(nextRole);
-    setUsername(roleLoginDefaults[nextRole].username);
-    setPassword(roleLoginDefaults[nextRole].password);
-    setError("");
-  };
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -297,13 +290,12 @@ function Login({ onEnter }: { onEnter: (session: WorkspaceSession) => void }) {
         <div className="login-card">
           <div className="secure-badge"><ShieldCheck size={15} /> Himoyalangan platforma</div>
           <h1>Kabinetga kirish</h1>
-          <p>O‘qituvchi yoki administrator rolini tanlang.</p>
-          <div className="role-login-grid" aria-label="Rolni tanlang">{roleOptions.map((option) => { const Icon = option.icon; return <button type="button" key={option.id} className={role === option.id ? "active" : ""} onClick={() => chooseRole(option.id)}><span><Icon size={18} /></span><strong>{option.label}</strong><small>{option.description}</small>{role === option.id && <Check size={14} />}</button>; })}</div>
+          <p>Login va parolingizni kiriting.</p>
           <form onSubmit={submit}>
-            <label>Login yoki kirish kodi<input name="code" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></label>
+            <label>Login yoki kirish kodi<input name="code" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoFocus /></label>
             <label>Parol<div className="password-field"><input name="password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label="Parolni ko‘rsatish">{showPassword ? <EyeOff size={19} /> : <Eye size={19} />}</button></div></label>
             {error && <div className="form-error"><CircleHelp size={16} /> {error}</div>}
-            <button className="login-button" type="submit" disabled={loading}><LockKeyhole size={17} /> {loading ? "Kabinet yuklanmoqda..." : `${roleLoginDefaults[role].label} kabinetiga kirish`} <ArrowRight size={18} /></button>
+            <button className="login-button" type="submit" disabled={loading}><LockKeyhole size={17} /> {loading ? "Kabinet yuklanmoqda..." : "Kabinetga kirish"} <ArrowRight size={18} /></button>
           </form>
         </div>
         <span className="login-foot">RBIS · BilimYo‘l platformasi</span>
@@ -369,24 +361,21 @@ function Overview({
       ? Math.round(Number(liveReport.overall_score))
       : 41;
   const candidateName = miniResult?.candidate ?? liveReport?.student.full_name ?? "Bobur Xasanboyev";
-  const candidateGrade = miniResult?.grade ?? "8-sinfga nomzod";
+  const candidateGrade = miniResult?.grade ?? (liveReport?.grade || liveReport?.exam?.grade ? `${liveReport?.grade ?? liveReport?.exam?.grade}-sinf` : "Sinf belgilanmagan");
   const readiness = miniResult ? (miniResult.passed ? "ready" : "not_ready") : (liveReport?.readiness ?? "not_ready");
   const correctAnswers = miniResult?.correctAnswers ?? Math.round(overallScore / 10);
   const createdAt = miniResult?.createdAt ?? "18-iyul · 14:10";
   const bestSubject = [...subjectList].sort((a, b) => b.score - a.score)[0];
   const weakestSubject = [...subjectList].sort((a, b) => a.score - b.score)[0];
-  const englishOnly = Boolean(
-    liveReport
-    && subjectList.length === 1
-    && subjectList[0]?.id === "english",
-  );
+  const singleSubject = subjectList.length === 1 ? subjectList[0] : null;
+  const singleSubjectReport = Boolean(liveReport && singleSubject);
   const levelText = overallScore < 35 ? "sayoz" : overallScore < 50 ? "zaif" : overallScore < 67 ? "o‘rtacha" : overallScore < 84 ? "yaxshi" : "juda yaxshi";
   const scoreRangeLow = miniResult ? Math.max(overallScore - 3, 0) : liveReport ? Math.round(Number(liveReport.range_low)) : 38;
   const scoreRangeHigh = miniResult ? Math.min(overallScore + 3, 100) : liveReport ? Math.round(Number(liveReport.range_high)) : 44;
   const expectedScore = miniResult ? overallScore : liveReport ? Math.round(Number(liveReport.expected_score)) : 42;
 
   const subjectWeight = (subject: Subject) => {
-    if (englishOnly) return 100;
+    if (singleSubjectReport) return 100;
     if (!miniResult) return subject.id === "critical" ? 30 : 35;
     return subject.id === "math" ? 40 : 30;
   };
@@ -397,16 +386,16 @@ function Overview({
         <div className="hero-art hero-art-one">S</div><div className="hero-art hero-art-two">1</div>
         <div className="report-hero-content">
           <div className="hero-brand"><RbisBrand inverse /><span /> <em>Biz ilmga sodiqmiz</em></div>
-          <span className="hero-kicker">{miniResult ? "Administrator o‘tkazgan qabul mini-imtihoni" : englishOnly ? "English placement diagnostikasi" : "Prezident maktabiga kirish diagnostikasi"}</span>
+          <span className="hero-kicker">{miniResult ? "Administrator o‘tkazgan qabul mini-imtihoni" : singleSubjectReport ? `${singleSubject?.title} diagnostikasi` : "Prezident maktabiga kirish diagnostikasi"}</span>
           <h1>Umumiy diagnostik<br />xulosa</h1>
-          <p>{englishOnly ? "English darajasi, mavzular va ko‘nikmalar — bir qarashda." : "IQ, matematika va ingliz tili — bir qarashda."}</p>
+          <p>{singleSubjectReport ? `${singleSubject?.title} darajasi, mavzular va ko‘nikmalar — bir qarashda.` : "IQ, matematika va ingliz tili — bir qarashda."}</p>
           <div className="candidate-meta">
             <span><small>Nomzod</small>{candidateName}</span>
             <span><small>Sinf</small>{candidateGrade}</span>
-            <span><small>Imtihon</small>{miniResult ? "3 fan · jami 10 savol" : englishOnly ? "English · 100 ball" : "3 fan · har biri 100 ball"}</span>
+            <span><small>Imtihon</small>{miniResult ? "3 fan · jami 10 savol" : singleSubjectReport ? `${singleSubject?.title} · 100 ball` : "3 fan · har biri 100 ball"}</span>
           </div>
           <div className="hero-score-card">
-            <div className="hero-score"><strong>{overallScore}</strong><span>/100</span><em>{miniResult ? "10 savollik mini-imtihon" : englishOnly ? "English natijasi" : "3 fan o‘rtachasi"}</em></div>
+            <div className="hero-score"><strong>{overallScore}</strong><span>/100</span><em>{miniResult ? "10 savollik mini-imtihon" : singleSubjectReport ? `${singleSubject?.title} natijasi` : "3 fan o‘rtachasi"}</em></div>
             <div className="hero-subject-scores">{subjectList.map((subject) => <span key={subject.id}><strong>{subject.score}</strong>{subject.title}</span>)}</div>
             <div className="hero-mini-facts">
               {miniResult ? (
@@ -418,7 +407,7 @@ function Overview({
               ) : (
                 <>
                   <span><strong>{liveReport?.answer_summary ? `${liveReport.answer_summary.correct}/${liveReport.answer_summary.total}` : "—"}</strong>to‘g‘ri javob</span>
-                  <span><strong>{liveReport?.subject_results[0]?.level ?? "—"}</strong>English daraja</span>
+                  <span><strong>{liveReport?.subject_results[0]?.level ?? "—"}</strong>{singleSubject?.title ?? "Fan"} daraja</span>
                   <span><strong>{subjectList.length}</strong>faol fan</span>
                 </>
               )}
@@ -451,7 +440,7 @@ function Overview({
           <div className="report-stamp"><FileCheck2 size={20} /><span>Hisobot yaratildi<strong>{createdAt}</strong></span></div>
         </div>
         <div className="level-metrics">
-          <div><span>Umumiy ball</span><strong className="gold-text">{overallScore}<small>/100</small></strong><em>{miniResult ? "10 ta savol natijasi" : englishOnly ? "English testi natijasi" : "Uch fan o‘rtachasi"}</em></div>
+          <div><span>Umumiy ball</span><strong className="gold-text">{overallScore}<small>/100</small></strong><em>{miniResult ? "10 ta savol natijasi" : singleSubjectReport ? `${singleSubject?.title} testi natijasi` : "Uch fan o‘rtachasi"}</em></div>
           <div><span>Taxminiy oraliq</span><strong>{scoreRangeLow}–{scoreRangeHigh}</strong><em>Hisoblashdagi aniqlik</em></div>
           <div><span>Kutilayotgan ball</span><strong className="gold-text">~{expectedScore}</strong><em>Bir xil sharoit saqlansa</em></div>
         </div>
@@ -459,7 +448,7 @@ function Overview({
         <div className="formula-block">
           <div>
             <h3>Umumiy ball qanday hisoblandi?</h3>
-            <p>{miniResult ? "10 savollik mini-imtihondagi fanlar ulushi" : englishOnly ? "English testi 100% og‘irlik bilan hisoblanadi" : "8-sinf imtihoni uchun tasdiqlangan fanlar og‘irligi"}</p>
+            <p>{miniResult ? "10 savollik mini-imtihondagi fanlar ulushi" : singleSubjectReport ? `${singleSubject?.title} testi 100% og‘irlik bilan hisoblanadi` : "Imtihon uchun tasdiqlangan fanlar og‘irligi"}</p>
           </div>
           <div className="formula-table">
             {subjectList.map((subject) => {
@@ -478,15 +467,15 @@ function Overview({
           <p className="formula-note">
             {miniResult
               ? "Formula: Matematika 4 savol (40%) + Ingliz tili 3 savol (30%) + IQ 3 savol (30%)."
-              : englishOnly
-                ? "Formula: English natijasi × 100%."
+              : singleSubjectReport
+                ? `Formula: ${singleSubject?.title} natijasi × 100%.`
                 : "Formula: Matematika × 35% + Ingliz tili × 35% + IQ × 30%."}
           </p>
         </div>
       </section>
 
       <section className="section-block subjects-section">
-        <div className="section-number">03</div><h2>{englishOnly ? "English natijasi" : "Uch fan bo‘yicha"}</h2><p>{englishOnly ? "Daraja, ball va asosiy o‘sish yo‘nalishlari." : "Har bir fan — ball, salohiyat va asosiy o‘sish yo‘nalishlari bilan."}</p>
+        <div className="section-number">03</div><h2>{singleSubjectReport ? `${singleSubject?.title} natijasi` : "Uch fan bo‘yicha"}</h2><p>{singleSubjectReport ? "Daraja, ball va asosiy o‘sish yo‘nalishlari." : "Har bir fan — ball, salohiyat va asosiy o‘sish yo‘nalishlari bilan."}</p>
         <div className="subject-grid">{subjectList.map((subject) => <SubjectCard key={subject.id} subject={subject} onOpen={() => onSelect(subject.id)} />)}</div>
       </section>
     </>
@@ -527,13 +516,43 @@ function SubjectHero({
 function QuestionTable({ subject }: { subject: Subject }) {
   const [filter, setFilter] = useState<"all" | QuestionStatus>("all");
   const [query, setQuery] = useState("");
-  const visible = subject.questions.filter((question) => (filter === "all" || question.status === filter) && question.topic.toLowerCase().includes(query.toLowerCase()));
+  const normalizedQuery = query.trim().toLowerCase();
+  const visible = subject.questions.filter((question) => {
+    const matchesStatus = filter === "all" || question.status === filter;
+    const haystack = `${question.code} ${question.topic} ${question.skill} ${question.prompt ?? ""}`.toLowerCase();
+    return matchesStatus && (!normalizedQuery || haystack.includes(normalizedQuery));
+  });
   const correct = subject.questions.filter((question) => question.status === "correct").length;
+
   return (
     <section className="section-block questions-section">
-      <div className="section-heading"><div><div className="section-number">04</div><h2>Har bir savol</h2><p>Har bir javob qaysi mavzu va ko‘nikmani tekshirganini ko‘ring.</p></div><div className="question-stats"><span><CheckCircle2 size={17} /> {correct} to‘g‘ri</span><span><XCircle size={17} /> {subject.questions.length - correct} xato</span></div></div>
-      <div className="table-tools"><div className="segmented"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>Barchasi</button><button className={filter === "correct" ? "active" : ""} onClick={() => setFilter("correct")}>To‘g‘ri</button><button className={filter === "wrong" ? "active" : ""} onClick={() => setFilter("wrong")}>Xato</button></div><label className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Mavzu bo‘yicha izlash" /></label></div>
-      <div className="question-table-wrap"><table className="question-table"><thead><tr><th>#</th><th>Natija</th><th>Kichik mavzu</th><th>Ko‘nikma</th><th>Daraja</th></tr></thead><tbody>{visible.map((question) => <tr key={question.code}><td><strong>{question.code}</strong></td><td>{question.status === "correct" ? <span className="status-icon correct"><Check size={17} /></span> : <span className="status-icon wrong"><X size={17} /></span>}</td><td>{question.topic}</td><td><span className="skill-chip">{question.skill}</span></td><td><span className={`difficulty ${question.difficulty === "Yuqori" ? "hard" : question.difficulty === "O‘rta" ? "medium" : "easy"}`}>{question.difficulty}</span></td></tr>)}</tbody></table>{visible.length === 0 && <div className="empty-state"><Search size={23} /> Mos mavzu topilmadi</div>}</div>
+      <div className="section-heading">
+        <div><div className="section-number">04</div><h2>Savolma-savol natija</h2><p>Tanlangan javob, to‘g‘ri javob va izohni har bir savol bo‘yicha ko‘ring.</p></div>
+        <div className="question-stats"><span><CheckCircle2 size={17} /> {correct} to‘g‘ri</span><span><XCircle size={17} /> {subject.questions.length - correct} xato</span></div>
+      </div>
+      <div className="table-tools">
+        <div className="segmented"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>Barchasi</button><button className={filter === "correct" ? "active" : ""} onClick={() => setFilter("correct")}>To‘g‘ri</button><button className={filter === "wrong" ? "active" : ""} onClick={() => setFilter("wrong")}>Xato</button></div>
+        <label className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Savol yoki mavzu bo‘yicha izlash" /></label>
+      </div>
+      <div className="question-review-list">
+        {visible.map((question, index) => (
+          <article className={`question-review-card ${question.status}`} key={question.code}>
+            <header>
+              <div><span>{index + 1}</span><div><small>{question.code} · {question.topic}</small><strong>{question.status === "correct" ? "To‘g‘ri javob" : question.isAnswered === false ? "Javob berilmagan" : "Noto‘g‘ri javob"}</strong></div></div>
+              <em className={`difficulty ${question.difficulty === "Yuqori" ? "hard" : question.difficulty === "O‘rta" ? "medium" : "easy"}`}>{question.difficulty}</em>
+            </header>
+            {question.context && <blockquote>{question.context}</blockquote>}
+            <h3>{question.prompt ?? question.topic}</h3>
+            {question.imageUrl && <Image className="question-review-image" src={question.imageUrl} alt={question.prompt ?? question.topic} width={1200} height={800} unoptimized />}
+            <div className="question-answer-grid">
+              <div className={question.status === "correct" ? "correct" : "wrong"}><span>Sizning javobingiz</span><strong>{question.selectedAnswer ?? "Javob berilmagan"}</strong></div>
+              <div className="correct"><span>To‘g‘ri javob</span><strong>{question.correctAnswer ?? "—"}</strong></div>
+            </div>
+            <footer><span className="skill-chip">{question.skill}</span>{question.explanation && <p><strong>Izoh:</strong> {question.explanation}</p>}</footer>
+          </article>
+        ))}
+        {visible.length === 0 && <div className="empty-state"><Search size={23} /> Mos savol topilmadi</div>}
+      </div>
     </section>
   );
 }
@@ -662,13 +681,28 @@ function ReportApp({
         potential: live.potential,
         accent: rbisChartColor(live.subject.slug),
         strong: skillRows.length
-          ? skillRows.slice(0, 2).map((item) => item.skill?.title ?? "English")
-          : ["English natijasi"],
+          ? skillRows.slice(0, 2).map((item) => item.skill?.title ?? live.subject.title)
+          : [`${live.subject.title} natijasi`],
         weak: skillRows.length
-          ? [...skillRows].reverse().slice(0, 2).map((item) => item.skill?.title ?? "English")
-          : ["English ko‘nikmalari"],
+          ? [...skillRows].reverse().slice(0, 2).map((item) => item.skill?.title ?? live.subject.title)
+          : [`${live.subject.title} ko‘nikmalari`],
         skills: paddedSkills,
-        questions: [],
+        questions: (liveReport.question_review ?? [])
+          .filter((item) => item.subject.slug === live.subject.slug)
+          .map((item) => ({
+            code: item.code,
+            status: item.is_correct ? "correct" as const : "wrong" as const,
+            topic: item.topic?.title ?? "Mavzu belgilanmagan",
+            skill: item.skills?.map((skill) => skill.title).join(", ") || "Ko‘nikma belgilanmagan",
+            difficulty: item.difficulty === "high" ? "Yuqori" as const : item.difficulty === "medium" ? "O‘rta" as const : "Boshlang‘ich" as const,
+            prompt: item.prompt,
+            context: item.context,
+            imageUrl: item.image_url,
+            selectedAnswer: item.selected_option ? `${item.selected_option.label}) ${item.selected_option.text}` : "Javob berilmagan",
+            correctAnswer: item.correct_option ? `${item.correct_option.label}) ${item.correct_option.text}` : "—",
+            explanation: item.explanation,
+            isAnswered: item.is_answered,
+          })),
       };
     });
   }, [liveReport]);

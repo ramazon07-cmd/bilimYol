@@ -39,7 +39,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
     def validate_exam(self, exam):
         if not is_enabled_diagnostic_exam(exam):
             raise serializers.ValidationError(
-                "Hozircha faqat English savollaridan iborat diagnostik test faol."
+                "Bu diagnostik test hozir faol emas yoki ruxsat etilgan fanlardan tuzilmagan."
             )
         return exam
 
@@ -215,11 +215,20 @@ class DiagnosticReportDetailSerializer(DiagnosticReportSerializer):
     strengths = serializers.SerializerMethodField()
     weaknesses = serializers.SerializerMethodField()
     previous_attempts = serializers.SerializerMethodField()
+    question_review = serializers.SerializerMethodField()
 
     class Meta(DiagnosticReportSerializer.Meta):
         fields = DiagnosticReportSerializer.Meta.fields + [
-            "attempt_detail", "strengths", "weaknesses", "previous_attempts",
+            "attempt_detail", "strengths", "weaknesses", "previous_attempts", "question_review",
         ]
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if getattr(user, "role", None) != "student":
+            fields.pop("question_review", None)
+        return fields
 
     def get_attempt_detail(self, obj):
         attempt = obj.attempt
@@ -236,6 +245,69 @@ class DiagnosticReportDetailSerializer(DiagnosticReportSerializer):
             "earned_points": attempt.earned_points,
             "delivery_mode": assignment.delivery_mode,
         }
+
+    @staticmethod
+    def _option_payload(option):
+        if option is None:
+            return None
+        return {"id": option.id, "label": option.label, "text": option.text}
+
+    def get_question_review(self, obj):
+        attempt = obj.attempt
+        exam_questions = list(
+            attempt.assignment.exam.exam_questions.select_related(
+                "question__subject", "question__topic",
+            ).prefetch_related("question__skills", "question__options")
+        )
+        answers = {
+            answer.exam_question_id: answer
+            for answer in attempt.answers.select_related("selected_option")
+        }
+        by_id = {item.id: item for item in exam_questions}
+        ordered = [by_id[item_id] for item_id in attempt.question_order if item_id in by_id]
+        ordered_ids = {item.id for item in ordered}
+        ordered.extend(item for item in exam_questions if item.id not in ordered_ids)
+
+        rows = []
+        for exam_question in ordered:
+            question = exam_question.question
+            answer = answers.get(exam_question.id)
+            correct_option = next(
+                (option for option in question.options.all() if option.is_correct),
+                None,
+            )
+            rows.append({
+                "exam_question_id": exam_question.id,
+                "code": question.code,
+                "context": question.context,
+                "prompt": question.prompt,
+                "image_url": question.image_url,
+                "subject": {
+                    "id": question.subject_id,
+                    "slug": question.subject.slug,
+                    "title": question.subject.title,
+                },
+                "topic": {
+                    "id": question.topic_id,
+                    "code": question.topic.code,
+                    "title": question.topic.title,
+                },
+                "skills": [
+                    {"id": skill.id, "slug": skill.slug, "title": skill.title}
+                    for skill in question.skills.all()
+                ],
+                "difficulty": question.difficulty,
+                "points": exam_question.points,
+                "selected_option": self._option_payload(answer.selected_option if answer else None),
+                "correct_option": self._option_payload(correct_option),
+                "is_answered": answer is not None,
+                "is_correct": bool(answer and answer.is_correct),
+                "earned_points": answer.earned_points if answer else 0,
+                "is_flagged": bool(answer and answer.is_flagged),
+                "answered_at": answer.answered_at if answer else None,
+                "explanation": question.explanation,
+            })
+        return rows
 
     def _rank_result(self, obj, reverse):
         rows = []
