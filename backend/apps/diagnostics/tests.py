@@ -314,12 +314,18 @@ class BilimYolApiTests(APITestCase):
         self.assertIn("strengths", response.data)
         self.assertIn("weaknesses", response.data)
 
-    def test_student_report_detail_omits_question_review(self):
+    def test_student_report_detail_contains_own_question_review(self):
         report = DiagnosticReport.objects.get()
         self.authenticate()
         response = self.client.get(f"/api/reports/{report.id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("question_review", response.data)
+        self.assertIn("question_review", response.data)
+        self.assertEqual(len(response.data["question_review"]), response.data["answer_summary"]["total"])
+        first = response.data["question_review"][0]
+        self.assertIn("prompt", first)
+        self.assertIn("selected_option", first)
+        self.assertIn("correct_option", first)
+        self.assertIn("explanation", first)
 
     def test_admin_can_filter_reports_by_grade_subject_and_score(self):
         self.authenticate("admin", "admin12345")

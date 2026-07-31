@@ -12,6 +12,7 @@ from apps.academics.policies import is_enabled_diagnostic_exam
 from .models import (
     DiagnosticReport,
     ExamAttempt,
+    StudentAnswer,
     Roadmap,
     RoadmapStage,
     SkillResult,
@@ -38,10 +39,20 @@ def score_level(score: Decimal) -> str:
     return "Juda yaxshi"
 
 
-def subject_level(subject_slug: str, score: Decimal) -> str:
+def subject_level(subject_slug: str, score: Decimal, grade: int | None = None) -> str:
     if subject_slug != "english":
         return score_level(score)
     value = float(score)
+    # Placement Test 1 and Test 2 use the PDF bands:
+    # 0-10/30 = Below A1, 11-20/30 = A1, 21-30/30 = A2.
+    if grade is not None and grade <= 4:
+        if value <= 33.34:
+            return "Below A1"
+        if value <= 66.67:
+            return "A1"
+        return "A2"
+    # Test 3 (grades 5-11): 0-6 A1, 7-12 A2, 13-18 B1,
+    # 19-24 B2, 25-30 C1. Scores are normalized to 100.
     if value <= 20:
         return "A1"
     if value <= 40:
@@ -61,14 +72,31 @@ def confidence_for(question_count: int) -> str:
     return "low"
 
 
-@transaction.atomic
 def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_exam=False) -> DiagnosticReport:
+    """Score atomically, then build the roadmap in a separate transaction."""
+    with transaction.atomic():
+        report = _submit_attempt_in_transaction(
+            attempt,
+            submitted_by=submitted_by,
+            allow_inactive_exam=allow_inactive_exam,
+        )
+
+    build_roadmap(report)
+    return report
+
+
+def _submit_attempt_in_transaction(
+    attempt: ExamAttempt,
+    submitted_by=None,
+    *,
+    allow_inactive_exam=False,
+) -> DiagnosticReport:
     if attempt.status != ExamAttempt.Status.IN_PROGRESS:
         raise ValidationError("Bu urinish allaqachon yakunlangan.")
 
     exam = attempt.assignment.exam
     if not allow_inactive_exam and not is_enabled_diagnostic_exam(exam):
-        raise ValidationError("Hozircha faqat English diagnostik testi faol.")
+        raise ValidationError("Bu diagnostik test hozir faol emas.")
     exam_questions = list(
         exam.exam_questions.select_related("question__subject", "question__topic")
         .prefetch_related("question__skills", "question__options")
@@ -84,6 +112,7 @@ def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_ex
     topic_data = defaultdict(lambda: {"earned": Decimal("0"), "possible": Decimal("0"), "count": 0})
     skill_data = defaultdict(lambda: {"earned": Decimal("0"), "possible": Decimal("0"), "count": 0})
     total_earned = Decimal("0")
+    answers_to_update = []
 
     for exam_question in exam_questions:
         answer = answers.get(exam_question.id)
@@ -96,7 +125,7 @@ def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_ex
         if answer:
             answer.is_correct = is_correct
             answer.earned_points = earned
-            answer.save(update_fields=["is_correct", "earned_points"])
+            answers_to_update.append(answer)
         total_earned += earned
         subject_id = exam_question.question.subject_id
         topic_id = exam_question.question.topic_id
@@ -109,6 +138,13 @@ def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_ex
             skill_data[skill.id]["possible"] += exam_question.points
             skill_data[skill.id]["earned"] += earned
             skill_data[skill.id]["count"] += 1
+
+    # Barcha javoblarni bittalab UPDATE qilish o‘rniga bitta bulk query ishlatamiz.
+    # Bu ayniqsa 20–25 o‘quvchi bir vaqtda submit qilganda DB yukini keskin kamaytiradi.
+    if answers_to_update:
+        StudentAnswer.objects.bulk_update(
+            answers_to_update, ["is_correct", "earned_points"], batch_size=200,
+        )
 
     weights = {item.subject_id: item for item in exam.subject_weights.select_related("subject")}
     subject_scores = {}
@@ -163,7 +199,7 @@ def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_ex
             possible_points=data["possible"],
             score=subject_scores[subject_id],
             weight_percent=weights.get(subject_id).weight_percent if weights.get(subject_id) else 0,
-            level=subject_level(weights[subject_id].subject.slug, subject_scores[subject_id])
+            level=subject_level(weights[subject_id].subject.slug, subject_scores[subject_id], grade=exam.grade)
             if weights.get(subject_id)
             else score_level(subject_scores[subject_id]),
             percentile=max(1, min(99, int(subject_scores[subject_id] * Decimal("0.82")))),
@@ -200,7 +236,6 @@ def submit_attempt(attempt: ExamAttempt, submitted_by=None, *, allow_inactive_ex
     if profile:
         profile.status = profile.Status.DIAGNOSED
         profile.save(update_fields=["status", "updated_at"])
-    build_roadmap(report)
     return report
 
 
@@ -321,7 +356,7 @@ def build_roadmap(report: DiagnosticReport) -> Roadmap:
 
 def start_attempt(assignment, started_by=None):
     if not is_enabled_diagnostic_exam(assignment.exam):
-        raise ValidationError("Hozircha faqat English diagnostik testi faol.")
+        raise ValidationError("Bu diagnostik test hozir faol emas.")
     existing = assignment.attempts.filter(status=ExamAttempt.Status.IN_PROGRESS).first()
     if existing:
         return existing

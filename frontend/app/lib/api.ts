@@ -45,6 +45,7 @@ export type LiveQuestionReview = {
   code: string;
   context: string;
   prompt: string;
+  image_url?: string;
   subject: { id: number; slug: string; title: string };
   topic: { id: number; code: string; title: string };
   skills: { id: number; slug: string; title: string }[];
@@ -105,6 +106,7 @@ export type LiveDiagnosticReport = {
   grade?: number | null;
   classroom?: { id: number; name: string; grade: number } | null;
   answer_summary?: LiveAnswerSummary;
+  question_review?: LiveQuestionReview[];
   roadmap?: {
     id: number;
     status: string;

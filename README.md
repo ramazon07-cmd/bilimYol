@@ -153,3 +153,33 @@ npm run build
 - `DEBUG=False` va aniq `ALLOWED_HOSTS` o‘rnating.
 - Frontendda `NEXT_PUBLIC_API_BASE_URL=https://api-domeningiz.uz/api` kiriting.
 - `NEXT_PUBLIC_ENABLE_DEMO_MODE=false` qoldiring va production bazada eski demo hisoblar bo‘lsa, ularni o‘chiring yoki parollarini almashtiring.
+
+<!-- bilimyol-math-grades-2-4 -->
+## 2-4-sinf matematika qabul diagnostikasi
+
+Foydalanuvchi taqdim etgan testlar asosida 2-sinf uchun 20 ta, 3-sinf uchun
+30 ta va 4-sinf uchun 30 ta matematika savoli qo‘shilgan. Rasmlik savollar
+frontend `public/question-assets/math/` papkasidan ochiladi.
+
+```bash
+cd backend
+python manage.py migrate
+python manage.py seed_math_diagnostics
+python manage.py test apps.diagnostics.test_math_diagnostics
+```
+
+Frontend tekshiruvi:
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
+
+<!-- bilimyol-math-english-results-v2 -->
+## Math + English va savolma-savol natijalar
+
+2-, 3- va 4-sinf o‘quvchisiga sinfi mos bo‘lgan barcha faol Math va English
+qabul diagnostikalari tavsiya qilinadi. Student testni yakunlagach, o‘z
+hisobotida har bir savol uchun tanlangan javob, to‘g‘ri javob va izohni ko‘radi.
+Admin, teacher va parent API javobida to‘g‘ri javoblar ochilmaydi.

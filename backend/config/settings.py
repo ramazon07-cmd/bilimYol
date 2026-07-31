@@ -71,7 +71,8 @@ if os.getenv("DATABASE_URL"):
         "PASSWORD": parsed.password,
         "HOST": parsed.hostname,
         "PORT": parsed.port or 5432,
-        "CONN_MAX_AGE": 60,
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
+        "CONN_HEALTH_CHECKS": True,
         "OPTIONS": {"sslmode": "require"} if not DEBUG else {},
     }
 
@@ -119,4 +120,4 @@ SPECTACULAR_SETTINGS = {
 
 # Mathematics and IQ/Critical Thinking are intentionally inactive until their
 # reviewed question banks are ready. Extend this tuple when those banks ship.
-DIAGNOSTIC_ACTIVE_SUBJECTS = ("english",)
+DIAGNOSTIC_ACTIVE_SUBJECTS = ("english", "math")
