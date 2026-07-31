@@ -83,20 +83,41 @@ type Subject = {
   strong: string[];
   weak: string[];
   skills: number[];
+  radarLabels?: string[];
   questions: Question[];
   focus: string;
   nextFocus: string;
 };
 
-const skillLabels = [
-  "Algebraik fikrlash",
-  "Geometrik-fazoviy tafakkur",
-  "Masalani modellashtirish",
-  "Muammoni yechish",
-  "Konseptual tushunish",
-  "Hisoblash aniqligi",
-  "Mantiqiy mulohaza",
-];
+const fallbackSkillLabels: Record<Exclude<SubjectId, "overall">, string[]> = {
+  math: [
+    "Algebraik fikrlash",
+    "Geometrik-fazoviy tafakkur",
+    "Masalani modellashtirish",
+    "Muammoni yechish",
+    "Konseptual tushunish",
+    "Hisoblash aniqligi",
+    "Mantiqiy mulohaza",
+  ],
+  english: [
+    "Grammatik aniqlik",
+    "Savol tuzish",
+    "Zamonlarni qo‘llash",
+    "Faktik o‘qish",
+    "Lug‘at boyligi",
+    "Matnni tushunish",
+    "Yozma aniqlik",
+  ],
+  critical: [
+    "Qonuniyatni topish",
+    "Mantiqiy xulosa",
+    "Tasniflash",
+    "Mantiqiy bog‘lanish",
+    "Fazoviy qonuniyat",
+    "Tanqidiy baholash",
+    "Dalilni tekshirish",
+  ],
+};
 
 const mathQuestions: Question[] = [
   { code: "M1", status: "correct", topic: "Daraja xossalarini moslashtirish", skill: "Algebraik fikrlash", difficulty: "Boshlang‘ich" },
@@ -550,7 +571,15 @@ function QuestionTable({ subject }: { subject: Subject }) {
   );
 }
 
-function RadarChart({ values, accent }: { values: number[]; accent: string }) {
+function RadarChart({
+  values,
+  labels,
+  accent,
+}: {
+  values: number[];
+  labels: string[];
+  accent: string;
+}) {
   const centerX = 290;
   const centerY = 225;
   const radius = 145;
@@ -568,16 +597,21 @@ function RadarChart({ values, accent }: { values: number[]; accent: string }) {
       {values.map((_, index) => { const [x, y] = point(100, index); return <line key={index} x1={centerX} y1={centerY} x2={x} y2={y} className="radar-axis" />; })}
       <polygon points={valuePolygon} fill={`${accent}22`} stroke={accent} strokeWidth="3" />
       {values.map((value, index) => { const [x, y] = point(value, index); return <circle key={index} cx={x} cy={y} r="5" fill={accent} stroke="white" strokeWidth="2" />; })}
-      {values.map((value, index) => { const [x, y] = point(112, index); const label = skillLabels[index]; const parts = label.split(" "); const split = parts.length > 2 ? Math.ceil(parts.length / 2) : parts.length; return <text key={label} x={x} y={y - 7} textAnchor={x < centerX - 12 ? "end" : x > centerX + 12 ? "start" : "middle"} className="radar-label"><tspan x={x}>{parts.slice(0, split).join(" ")}</tspan>{parts.length > split && <tspan x={x} dy="16">{parts.slice(split).join(" ")}</tspan>}<tspan x={x} dy="18" className="radar-value">{value}%</tspan></text>; })}
+      {values.map((value, index) => { const [x, y] = point(112, index); const label = labels[index] ?? `Ko‘nikma ${index + 1}`; const parts = label.split(" "); const split = parts.length > 2 ? Math.ceil(parts.length / 2) : parts.length; return <text key={`${label}-${index}`} x={x} y={y - 7} textAnchor={x < centerX - 12 ? "end" : x > centerX + 12 ? "start" : "middle"} className="radar-label"><tspan x={x}>{parts.slice(0, split).join(" ")}</tspan>{parts.length > split && <tspan x={x} dy="16">{parts.slice(split).join(" ")}</tspan>}<tspan x={x} dy="18" className="radar-value">{value}%</tspan></text>; })}
     </svg>
   );
 }
 
 function SkillsProfile({ subject }: { subject: Subject }) {
+  const radarLabels = subject.radarLabels ?? fallbackSkillLabels[subject.id];
+  const radarValues = radarLabels.map(
+    (_, index) => subject.skills[index] ?? subject.score,
+  );
+
   return (
     <section className="section-block skills-section">
-      <div className="section-number">05</div><h2>Ko‘nikmalar profili <span className="info-dot">i</span></h2><p>Yetti asosiy ko‘nikma bo‘yicha kuch-quvvat xaritasi.</p>
-      <div className="skills-layout"><div className="radar-panel"><RadarChart values={subject.skills} accent={subject.accent} /><p>Shakl qanchalik tekis bo‘lsa, ko‘nikmalar shunchalik muvozanatli. Bir tomonga cho‘zilgan bo‘lsa — o‘sha ko‘nikma ustun.</p></div><aside className="skills-aside"><div className="skill-summary good"><span><TrendingUp size={18} /> Kuchli yo‘nalish</span><strong>{subject.strong[0]}</strong><p>Ushbu yo‘nalish keyingi bosqich uchun tayanch bo‘la oladi.</p></div><div className="skill-summary weak"><span><Target size={18} /> Eng katta bo‘shliq</span><strong>{subject.weak[0]}</strong><p>Roadmapning birinchi bosqichi aynan shu ko‘nikmaga qaratiladi.</p></div><div className="confidence-note"><ShieldCheck size={18} /><span><strong>Ishonchlilik: o‘rta</strong>Natija {subject.questions.length} ta savolga asoslangan.</span></div></aside></div>
+      <div className="section-number">05</div><h2>Ko‘nikmalar profili <span className="info-dot">i</span></h2><p>{radarLabels.length} ta asosiy ko‘nikma bo‘yicha kuch-quvvat xaritasi.</p>
+      <div className="skills-layout"><div className="radar-panel"><RadarChart values={radarValues} labels={radarLabels} accent={subject.accent} /><p>Shakl qanchalik tekis bo‘lsa, ko‘nikmalar shunchalik muvozanatli. Bir tomonga cho‘zilgan bo‘lsa — o‘sha ko‘nikma ustun.</p></div><aside className="skills-aside"><div className="skill-summary good"><span><TrendingUp size={18} /> Kuchli yo‘nalish</span><strong>{subject.strong[0]}</strong><p>Ushbu yo‘nalish keyingi bosqich uchun tayanch bo‘la oladi.</p></div><div className="skill-summary weak"><span><Target size={18} /> Eng katta bo‘shliq</span><strong>{subject.weak[0]}</strong><p>Roadmapning birinchi bosqichi aynan shu ko‘nikmaga qaratiladi.</p></div><div className="confidence-note"><ShieldCheck size={18} /><span><strong>Ishonchlilik: o‘rta</strong>Natija {subject.questions.length} ta savolga asoslangan.</span></div></aside></div>
     </section>
   );
 }
@@ -667,8 +701,30 @@ function ReportApp({
       const skillRows = (liveReport.skill_results ?? [])
         .filter((item) => !live.subject.id || !item.skill?.subject || item.skill.subject === live.subject.id)
         .sort((a, b) => Number(b.score) - Number(a.score));
-      const skillScores = skillRows.map((item) => Math.round(Number(item.score)));
-      const paddedSkills = [...skillScores, ...Array(7).fill(Math.round(Number(live.score)))].slice(0, 7);
+      const fallbackLabels =
+        fallbackSkillLabels[
+          subjectId as Exclude<SubjectId, "overall">
+        ] ?? fallbackSkillLabels.english;
+      const measuredLabels = Array.from(
+        new Set(
+          skillRows.map(
+            (item) => item.skill?.title ?? live.subject.title,
+          ),
+        ),
+      );
+      const radarLabels =
+        measuredLabels.length >= 3
+          ? measuredLabels.slice(0, 7)
+          : fallbackLabels;
+      const radarValues = radarLabels.map((label) => {
+        const row = skillRows.find(
+          (item) =>
+            (item.skill?.title ?? live.subject.title) === label,
+        );
+        return row
+          ? Math.round(Number(row.score))
+          : Math.round(Number(live.score));
+      });
       return {
         ...template,
         score: Math.round(Number(live.score)),
@@ -681,7 +737,8 @@ function ReportApp({
         weak: skillRows.length
           ? [...skillRows].reverse().slice(0, 2).map((item) => item.skill?.title ?? live.subject.title)
           : [`${live.subject.title} ko‘nikmalari`],
-        skills: paddedSkills,
+        skills: radarValues,
+        radarLabels,
         questions: (liveReport.question_review ?? [])
           .filter((item) => item.subject.slug === live.subject.slug)
           .map((item) => ({
