@@ -1,0 +1,241 @@
+﻿code,grades,question_number,prompt,image_url,correct_answer,alternative_answers,tolerance
+Q26-MATH-G2-01,2,01,Sardorda 225 ming so'm pul bor. U sut sotib olishi uchun unga yana 35 ming so'm kerak bo'ladi. Sut qancha turadi (so'm)?,/question-assets/admission-2026/math/g2/q01.png,260000,,0
+Q26-MATH-G2-02,2,02,"3 ta olma sig'adigan sumka 2 dollar turadi. Agar sumka narxlari olmalar sig'imiga mos bo'lsa, 10 dollarga sotib olingan sumkalarga nechta olma sig'adi?",/question-assets/admission-2026/math/g2/q02.png,15,,0
+Q26-MATH-G2-03,2,03,Samolyot manzilga yetishi uchun yana qancha masofani uchib o'tishi kerak?,/question-assets/admission-2026/math/g2/q03.png,,,0
+Q26-MATH-G2-04,2,04,Rasmga asosan ikkita pomidorning vaznini toping.,/question-assets/admission-2026/math/g2/q04.png,,,0
+Q26-MATH-G2-05,2,05,Tenglamani ildizini toping: 24 + 12 + x = 22 + 18,/question-assets/admission-2026/math/g2/q05.png,4,,0
+Q26-MATH-G2-06,2,06,Miraziz Boboning hozirgi yoshi 69 da. Uning nabirasi Mirjalol bobosidan 3 marta kichik. Mirjalolning 3 yildan keyingi yoshini toping.,/question-assets/admission-2026/math/g2/q06.png,26,,0
+Q26-MATH-G2-07,2,07,"Birinchi sinfda 26 ta, ikkinchi sinfda undan 5 ta ko'p o'quvchi bor. Ikkala sinfda jami nechta o'quvchi bor?",/question-assets/admission-2026/math/g2/q07.png,57,,0
+Q26-MATH-G2-08,2,08,"Quyidagi shakllarda berilgan sonlar bog'liqligidan foydalanib, so'roq '?' o'rnidagi sonni toping.",/question-assets/admission-2026/math/g2/q08.png,,,0
+Q26-MATH-G2-09,2,09,"Quyida berilgan raqamlardan bir martadan foydalanib, eng kichik olti xonali sonni yozing.",/question-assets/admission-2026/math/g2/q09.png,,,0
+Q26-MATH-G2-10,2,10,"Quyidagi hisoblashlar to'g'ri bajarilganda, so'roq '?' belgisi o'rnida qaysi son bo'ladi?",/question-assets/admission-2026/math/g2/q10.png,,,0
+Q26-MATH-G2-11,2,11,Yig'indini qiymatini aniqlang:,/question-assets/admission-2026/math/g2/q11.png,,,0
+Q26-MATH-G2-12,2,12,Hisoblang: (24 : 8) + (6 · 9) - (45 - 7),/question-assets/admission-2026/math/g2/q12.png,19,,0
+Q26-MATH-G2-13,2,13,Berilgan qoidaga ko'ra '?' o'rnidagi sonni toping.,/question-assets/admission-2026/math/g2/q13.png,,,0
+Q26-MATH-G2-14,2,14,"Quyida berilgan tenglik to'g'ri bo'lsa, '?' o'rnidagi sonni toping.",/question-assets/admission-2026/math/g2/q14.png,,,0
+Q26-MATH-G2-15,2,15,"Bir o'ram gul yasash uchun 9 dona atirgul kerak. Agar bir dona atirgul narxi 12 000 so'm bo'lsa, o'ramning narxi necha so'm bo'ladi?",/question-assets/admission-2026/math/g2/q15.png,108000,,0
+Q26-MATH-G2-16,2,16,Ayirmani hisoblang: 18 m 63 cm - 9 m 18 cm = _ m _ cm,/question-assets/admission-2026/math/g2/q16.png,9 m 45 cm,,0
+Q26-MATH-G2-17,2,17,Daftarning narxi 700 so'm. Qalam daftardan ikki marta arzon. 3 ta daftar va 1 ta qalam birgalikda necha so'm bo'ladi?,/question-assets/admission-2026/math/g2/q17.png,2450,,0
+Q26-MATH-G2-18,2,18,Hozir soat 10:15. Avtobus 45 minutdan so’ng yuradi. Avtobus soat nechida yuradi?,/question-assets/admission-2026/math/g2/q18.png,11:00,,0
+Q26-MATH-G2-19,2,19,To’rtala tomoni ham bir-biriga teng bo’lgan shakl nima deyiladi?,/question-assets/admission-2026/math/g2/q19.png,kvadrat,,0
+Q26-MATH-G2-20,2,20,Matematika savoli 20,/question-assets/admission-2026/math/g2/q20.png,,,0
+Q26-MATH-G2-21,2,21,Matematika savoli 21,/question-assets/admission-2026/math/g2/q21.png,,,0
+Q26-MATH-G2-22,2,22,Solihada 14ta qulupnay bor edi. U 3ta dugonasing har biriga 4tadan qulupnay berdi. Solihada nechta qulupnay qoldi?,/question-assets/admission-2026/math/g2/q22.png,2,,0
+Q26-MATH-G2-23,2,23,"3ta guldonda jami 21ta atirgul bor. 1-chi va 2-chi guldonda jami 14 ta atirlgul bo'lsa, uchinchi guldonda nechta atirgul bor?",/question-assets/admission-2026/math/g2/q23.png,7,,0
+Q26-MATH-G2-24,2,24,Noma`lum sonni toping. X+45-10=34,/question-assets/admission-2026/math/g2/q24.png,-1,,0
+Q26-MATH-G2-25,2,25,6 tonna 345 kg-1 tonna 566 kg=___________kg,/question-assets/admission-2026/math/g2/q25.png,4779,,0
+Q26-MATH-G2-26,2,26,"Jirafaning og`irligi 2 tonna, fil jirafadan 3 tonna og`ir. Jirafa va filning umumiy og`irligini toping",/question-assets/admission-2026/math/g2/q26.png,7,,0
+Q26-MATH-G2-27,2,27,"Uch do`st baliq oviga borishdi. Sobir 7 ta baliq tutdi, Nodir undan 1 ta ko`p baliq tutdi. Diyor esa Sobir va Nodir qancha baliq tutgan bo`lsa oshancha baliq tutdi. Uch do`st birgalikda nechta baliq tutgan?",/question-assets/admission-2026/math/g2/q27.png,30,,0
+Q26-MATH-G2-28,2,28,Eng katta uch xonali sondan eng katta ikki xonali sonni ayiring va javobini yozing.,/question-assets/admission-2026/math/g2/q28.png,900,,0
+Q26-MATH-G2-29,2,29,"Uchburchakni bitta uchi kesib tashlansa, qanday shakl hosil bo`ladi?",/question-assets/admission-2026/math/g2/q29.png,to'rtburchak,,0
+Q26-MATH-G2-30,2,30,Tortni 8 bo`lakka bo`lish uchun necha marta kesiladi?,/question-assets/admission-2026/math/g2/q30.png,3,,0
+Q26-MATH-G3-01,3,01,Har bir qo'ng'izning 6 ta oyog'i bor. Quyidagi rasmdagi qo'ng'izlarning jami oyoqlari soni nechta ?,/question-assets/admission-2026/math/g3/q01.png,18,,0
+Q26-MATH-G3-02,3,02,Besh yuz yigirma sakkiz ming besh yuz so'm pul miqdori qanday yoziladi?,/question-assets/admission-2026/math/g3/q02.png,528500,,0
+Q26-MATH-G3-03,3,03,"Quyida N soni berilgan bo'lib, N soni 89 va 45 ning ayirmasiga teng. N ni toping.",/question-assets/admission-2026/math/g3/q03.png,44,,0
+Q26-MATH-G3-04,3,04,Rasmga e'tibor qiling. ▲ shakl qaysi katakda turibdi?,/question-assets/admission-2026/math/g3/q04.png,,,0
+Q26-MATH-G3-05,3,05,"1429, 2287 va 1534 sonlarining yig'indisini toping.",/question-assets/admission-2026/math/g3/q05.png,5250,,0
+Q26-MATH-G3-06,3,06,"Qutida 6 ta qizil, 10 ta ko'k va 4 ta sariq sharlar bor. Qutidan qaysi shar chiqishi imkonsiz?",/question-assets/admission-2026/math/g3/q06.png,,,0
+Q26-MATH-G3-07,3,07,Har birida 5 ta ruchka bo'lgan 6 ta idishdagi ruchkalar har birida ___ ta ruchka bo'lgan 3 ta idishdagi ruchkalar soniga teng. Yetishmayotgan sonni toping.,/question-assets/admission-2026/math/g3/q07.png,10,,0
+Q26-MATH-G3-08,3,08,Charos qutiga qaramasdan sharni olmoqchi. U olmoqchi bo'lgan shaklni qaysi qutidan olsa u xohlagan shakl chiqishi ehtimoli kattaroq?,/question-assets/admission-2026/math/g3/q08.png,,,0
+Q26-MATH-G3-09,3,09,22 + 19 bilan bir xil qiymatga ega 20 + ? kabi yig'indidagi ? o'rnidagi sonni toping.,/question-assets/admission-2026/math/g3/q09.png,21,,0
+Q26-MATH-G3-10,3,10,"Rahim yo'l ko'rsatkichi yonidan yo'lga chiqadi. U avval daryochaga bordi, so'ng orqaga qaytib kioskga bordi. U jami necha kilometr yo'l bosadi?",/question-assets/admission-2026/math/g3/q10.png,,,0
+Q26-MATH-G3-11,3,11,Lobar qutiga 34 ta pirogni qutilarga solmoqda. Har bir qutiga 5 ta pirog sig'adi. Lobarga hamma piroglarni qutilarga solishi uchun jami nechta quti kerak?,/question-assets/admission-2026/math/g3/q11.png,7,,0
+Q26-MATH-G3-12,3,12,Quyidagi sonlardan qaysi biri o'nlar xonasigacha yaxlitlanganda 90 ga teng bo'ladi? A) 69 B) 72 C) 76 D) 85,/question-assets/admission-2026/math/g3/q12.png,85,,0
+Q26-MATH-G3-13,3,13,Quyidagi devordagi sonlar ma'lum bir qonuniyatga amal qiladi. Ba'zi sonlar yetishmayapti. X + Y ning qiymatini toping. A) 86 B) 115 C) 117 D) 118,/question-assets/admission-2026/math/g3/q13.png,,,0
+Q26-MATH-G3-14,3,14,Quyidagi rasmda Avstraliyaning xaritasi keltirilgan. Quyidagilardan qaysi biri ushbu xaritaning simmetrik ko'rinishi bo'ladi?,/question-assets/admission-2026/math/g3/q14.png,,,0
+Q26-MATH-G3-15,3,15,"Har bir juftlikdagi sonlar bir xil qoida asosida bog'langan. Yetishmayotgan sonni toping: [12, 5] [18, 8] [14, 6] [10, ?]",/question-assets/admission-2026/math/g3/q15.png,4,,0
+Q26-MATH-G3-16,3,16,"Eni 10 cm, bo'yi 8 cm bo'lgan to'g'ri to'rtburchakning perimetri, kvadratning yuziga o’zaro teng. Ushbu kvadratning tomonini toping.",/question-assets/admission-2026/math/g3/q16.png,6,,0
+Q26-MATH-G3-17,3,17,859 ga 3740 va 870 sonlari ayirmasini qo'shing.,/question-assets/admission-2026/math/g3/q17.png,3729,,0
+Q26-MATH-G3-18,3,18,Diyorbek 22 yosh. Javohir Kamrandan 9 yosh katta va Azizbekdan 6 yosh katta. Kamron Diyorbekdan 8 yosh katta. Azizbek necha yoshda?,/question-assets/admission-2026/math/g3/q18.png,33,,0
+Q26-MATH-G3-19,3,19,Ketma-ket kelgan 3 ta sonning ko'paytmasi quyidagilarning qaysi biriga bo'linmasligi mumkin? A) 6 B) 2 C) 9 D) 3,/question-assets/admission-2026/math/g3/q19.png,9,,0
+Q26-MATH-G3-20,3,20,Quyidagi sonlardan qaysi biri 12 ga bo'linmaydi? A) 60 B) 28 C) 48 D) 72,/question-assets/admission-2026/math/g3/q20.png,28,,0
+Q26-MATH-G3-21,3,21,"To'g'ri to'rtburchak perimetri 124 ga teng bo'lsa, uning turli tomonlari yig'indisini toping.",/question-assets/admission-2026/math/g3/q21.png,62,,0
+Q26-MATH-G3-22,3,22,Quyida rasmda katta uchburchak perimetrini toping.,/question-assets/admission-2026/math/g3/q22.png,,,0
+Q26-MATH-G3-23,3,23,"O'lchamlari 24 m, 30 m va 450 dm bo'lgan to'g'ri burchakli parallelepipedning hajmini toping.",/question-assets/admission-2026/math/g3/q23.png,32400,,0
+Q26-MATH-G3-24,3,24,"Agar 6 · 30 = a , 6 · 4 = b bo'lsa, 6 · 26 = ___ ni toping.",/question-assets/admission-2026/math/g3/q24.png,156,,0
+Q26-MATH-G3-25,3,25,” ? ” o'rnidagi sonni toping.,/question-assets/admission-2026/math/g3/q25.png,,,0
+Q26-MATH-G3-26,3,26,"Kurant soati soat mili nechani ko'rsatsa, shuncha marta bong uradi. Bir sutkada kurant soati necha marta bong uradi?",/question-assets/admission-2026/math/g3/q26.png,312,,0
+Q26-MATH-G3-27,3,27,Hisoblang: (31 · 9 - 754 : 29) · (1323 : 27 - 31),/question-assets/admission-2026/math/g3/q27.png,4554,,0
+Q26-MATH-G3-28,3,28,3 ; 4 ; 1 ; 5 ; 7 ; 10 ; 8 ; 9 sonlar qatorida medianasini toping.,/question-assets/admission-2026/math/g3/q28.png,6,,0
+Q26-MATH-G3-29,3,29,Qonuniyatni aniqlab ? o'rnidagi sonni toping:,/question-assets/admission-2026/math/g3/q29.png,,,0
+Q26-MATH-G3-30,3,30,** IQ test,/question-assets/admission-2026/math/g3/q30.png,,,0
+Q26-MATH-G4-01,4,01,▲ katta songa teng. Indira: ▲ : 777 ni to'g'ri hisoblaganda u 66 qoldiq bilan 888 degan javobni oladi. Qaysi amal ▲ ni beradi?,/question-assets/admission-2026/math/g4/q01.png,690042,,0
+Q26-MATH-G4-02,4,02,Ikkita nuqtaning koordinatalari (10; 5) va (10; 3). Mana shu ikkita nuqtalarni tutashtiruvchi to'g'ri chiziqning uzunligini toping.,/question-assets/admission-2026/math/g4/q02.png,2,,0
+Q26-MATH-G4-03,4,03,Quyidagi ketma-ketlikda tushirib qoldirilgan sonlarning yig'indisini toping: 15; 23; 31; ... ; ... ; 55; 63,/question-assets/admission-2026/math/g4/q03.png,86,,0
+Q26-MATH-G4-04,4,04,Berilgan rasmda sport to'garagidagi har xil yoshdagi bolalarning soni ko'rsatilgan. Yosh gorizontal o'qda ko'rsatilgan. Bolalarning soni esa vertikal o'qda ko'rsatilgan. Nechta bola 12 yoshdan yoshroq?,/question-assets/admission-2026/math/g4/q04.png,,,0
+Q26-MATH-G4-05,4,05,Umidda 7 kilogramm un bor. U unni imkoni boricha ko'proq tortlar tayyorlash uchun ishlatadi. U har bir tort uchun 400 gramm un ishlatadi. Qancha un qoladi?,/question-assets/admission-2026/math/g4/q05.png,200,,0
+Q26-MATH-G4-06,4,06,Quyida tenglama berilgan: (P - 15) × 43 = 946 P ni topish uchun qaysi amal ishlatiladi?,/question-assets/admission-2026/math/g4/q06.png,37,,0
+Q26-MATH-G4-07,4,07,Tenglamani yeching: (17 + x · x) · 6 = 18 · 71,/question-assets/admission-2026/math/g4/q07.png,14,,0
+Q26-MATH-G4-08,4,08,"Agar A = 310 + 311 + 312 + ... + 320 va B = 110 + 111 + 112 + ... + 120 bo'lsa, A - B ifodaning son qiymatini toping.",/question-assets/admission-2026/math/g4/q08.png,2200,,0
+Q26-MATH-G4-09,4,09,Fabrikada har 25 ta ishlab chiqaruvchi ishchiga 2 tadan nazoratchi bor. Fabrikada jami 300 ta ishlab chiqaruvchi ishchi bor. Fabrikada jami nechta nazoratchi bor?,/question-assets/admission-2026/math/g4/q09.png,24,,0
+Q26-MATH-G4-10,4,10,Chizmada uzunligi 20 cm bo'lgan AB kesma teng 10 ta bo'lakka bo'lingan. CB - CD kesma uzunligi AB kesmaning qanday qismini tashkil qiladi?,/question-assets/admission-2026/math/g4/q10.png,,,0
+Q26-MATH-G4-11,4,11,Kvadrat va teng tomonli uchburchakning perimetri bir xil. Teng tomonli uchburchakning bir tomoni uzunligi 36 cm ga teng. Kvadratning bir tomonining uzunligini hisoblang.,/question-assets/admission-2026/math/g4/q11.png,27,,0
+Q26-MATH-G4-12,4,12,"▲ butun songa teng: ▲ : 12 = 144 bo'lganda, ▲ : 36 ni toping.",/question-assets/admission-2026/math/g4/q12.png,48,,0
+Q26-MATH-G4-13,4,13,Quyida diagrammada kuboid tasvirlangan. Kuboidning barcha qirralari uzunligining yig'indisi nechiga teng? (kuboid: to'g'ri burchakli parallelepiped),/question-assets/admission-2026/math/g4/q13.png,,,0
+Q26-MATH-G4-14,4,14,"Meva va sabzavotlar narxi quyidagicha: - 4 kg piyoz va 3 kg pomidorning narxi 1 kg banan narxiga teng; - 5 kg sabzi narxi 1 kg uzum narxiga teng; - piyoz pomidordan 6 marta arzon; - uzum olmadan 2 marta qimmat; - sabzi pomidordan 2 500 so'm arzon. Agar piyozning narxi 850 so'm bo'lsa, 1 kg olma va 1 kg bananning birgalikdagi narxini toping.",/question-assets/admission-2026/math/g4/q14.png,25200,,0
+Q26-MATH-G4-15,4,15,Javlon 200 daqiqa ichida 60 000 metr masofani bosib o'tadi. Javlonning soatiga kilometrlardagi tezligini toping.,/question-assets/admission-2026/math/g4/q15.png,18,,0
+Q26-MATH-G4-16,4,16,"Shokolad plitkasi bir xil bo'laklardan iborat. Sardor bu plitkani o'zicha hammaga bo'lib berdi. Avval 6 ta bo'lagini sindirib oyisiga, keyin 7 ta bo'lagini sindirib otasiga berdi (chizmada ko'rsatilganidek). Uning o'ziga nechta bo'lak qoldi?",/question-assets/admission-2026/math/g4/q16.png,,,0
+Q26-MATH-G4-17,4,17,"Jamoa bir nechta o'yinlar o'ynadi. Jamoa o'yinda g'alaba qilganida, ular 3 ochkoni o'z hisobiga qo'shib qo'yishdi. Jamoa o'yinda yutqazganida, ular hisobidan 1 ochkoni olib tashlashdi. Boshida jamoaning hisobida 10 ochko bor edi. Oxirida esa ularning hisobida 24 ochko bo'ldi. Jamoa 4 ta o'yinda yutqazdi va qolgan barcha o'yinlarda g'alaba qildi. Nechta o'yinda jamoa g'alaba qildi?",/question-assets/admission-2026/math/g4/q17.png,6,,0
+Q26-MATH-G4-18,4,18,"Quyidagi mulohazalarning to'g'ri (T) yoki noto'g'ri (N) ekanligini aniqlang: I. Agar ifodada bir yoki bir necha qavslar bo'lsa, dastlab qavslar ichidagi amallar, keyin qolgan amallar bajariladi. II. Harakat vaqtini topish uchun masofani tezlikka ko'paytirish kerak. III. Ikkita tomonining uzunliklari o'zaro teng bo'lmagan uchburchak turli tomonli uchburchak deb ataladi.",/question-assets/admission-2026/math/g4/q18.png,"T,N,N",,0
+Q26-MATH-G4-19,4,19,"Sinfdagi barcha o'quvchilar tartib bilan qatorlarga o'tirib olishdi. Har bir qatordagi o'quvchilar soni bir xil. Suxrobning oldida 2 ta qator, orqasida esa 1 ta qator bor. Suxrob o'tirgan qatorda, uning chap tomonida 3 ta o'quvchi, o'ng tomonida esa 5 ta o'quvchi o'tiribdi. Sinfda jami nechta o'quvchi bor?",/question-assets/admission-2026/math/g4/q19.png,36,,0
+Q26-MATH-G4-20,4,20,Turabbekning bir qop tangalari bor. Qopdagi tangalarning umumiy qiymati 14 000 so'm. Qopda faqat 200 so'mlik va 500 so'mlik tangalar bor. Qopdagi tangalarning aniq 25 tasi 200 so'mlik. Qopda nechta 500 so'mlik tangalar bor?,/question-assets/admission-2026/math/g4/q20.png,18,,0
+Q26-MATH-G4-21,4,21,"Rasmda A, B va C idishlar suv bilan to'ldirilgan. Agar A idishdagi suv B idishdagi suvdan 4 marta ko'p bo'lsa, A idishdagi suv C idishdagi suvdan necha litr ko'p bo'ladi?",/question-assets/admission-2026/math/g4/q21.png,,,0
+Q26-MATH-G4-22,4,22,O'ng tomondagi kvadrat jadvalda har bir kichik kvadratning yuzasi 1 cm² ga teng. Jadvalning bo'yalgan yuzasini hisoblang.,/question-assets/admission-2026/math/g4/q22.png,,,0
+Q26-MATH-G4-23,4,23,Qutichada faqat sariq va yashil rangdagi konfetlar bor. Qutichadagi konfetlarning 1/4 qismi sariq rangda. Qutichada 36 ta yashil konfet bor. Qutichadagi jami konfetlar soni nechta?,/question-assets/admission-2026/math/g4/q23.png,48,,0
+Q26-MATH-G4-24,4,24,Ikkita butun sonning ayirmasi 8 ga teng va o'sha ikkita sonning yig'indisi 30 ga teng. O'sha ikkita sonning ko'paytmasini toping.,/question-assets/admission-2026/math/g4/q24.png,209,,0
+Q26-MATH-G4-25,4,25,"Ketma-ketlikning qonuniyatini aniqlab, so'roq belgisi o'rnidagi mos sonni toping:",/question-assets/admission-2026/math/g4/q25.png,,,0
+Q26-MATH-G4-26,4,26,Hilola ketma-ketlikda butun sonlar ro'yxatini yozdi. Uning ro'yxatidagi oxirgi son uch xonali 114 soni edi. U jami 57 ta raqam yozdi. Uning ro'yxatidagi birinchi sonni toping.,/question-assets/admission-2026/math/g4/q26.png,94,,0
+Q26-MATH-G4-27,4,27,"Kompyuter savodxonligi uchun informatika fanidan 75 ta o'quvchi test topshirishdi va unda o'quvchilar 0 dan 100 gacha bo'lgan ball bilan baholandi. Agar testda 25 nafar o'quvchi 84 dan yuqori yoki unga teng ball to'plagani ma'lum bo'lsa, barcha 75 nafar o'quvchining eng kichik o'rtacha bali qancha bo'ladi?",/question-assets/admission-2026/math/g4/q27.png,28,,0
+Q26-MATH-G4-28,4,28,Salim va Jamshid 8 sekund davomida tekis aylana yo'lak bo'ylab poyga qilishadi. Har ikkalasi ham bir xil vaqtda va bir xil joyda boshlashadi. Quyida berilgan rasm ular yugurgan paytdagi masofani ko'rsatadi. Startdan boshlangan vaqt sekundlarda gorizontal o'qda ko'rsatilgan. Startdan boshlangan masofa metrlarda vertikal o'qda ko'rsatilgan. Poyga boshlangandan so'ng Salim va Jamshidning orasidagi aniq 4 sekund o'tgandagi masofani hisoblang.,/question-assets/admission-2026/math/g4/q28.png,,,0
+Q26-MATH-G4-29,4,29,"Qonuniyatini aniqlab, so'roq belgisi o'rnidagi mos sonni toping:",/question-assets/admission-2026/math/g4/q29.png,,,0
+Q26-MATH-G4-30,4,30,Birinchi qatordagi peshtaxtada ikkinchisiga qaraganda 2barobar ko`p shaftoli bor edi. Birinchi qatordan ikkinc hi qatorga 9 dona shaftoli ko`chirilgandan so`ng ikkala qatordagi shaftolilar soni bir xil bo`ldi. Dastlab har bir qatorda nechtadan shaftoli bor edi?,/question-assets/admission-2026/math/g4/q30.png,36 va 18,,0
+Q26-MATH-G5-01,5,01,Raqamlari turlicha bo’lgan eng katta to’rt xonali sonni toping.,/question-assets/admission-2026/math/g5/q01.png,9876,,0
+Q26-MATH-G5-02,5,02,Hisoblang:,/question-assets/admission-2026/math/g5/q02.png,,,0
+Q26-MATH-G5-03,5,03,Tenglamani yeching 125+x=527,/question-assets/admission-2026/math/g5/q03.png,402,,0
+Q26-MATH-G5-04,5,04,Hisoblang: 456 ∙ 24,/question-assets/admission-2026/math/g5/q04.png,10944,,0
+Q26-MATH-G5-05,5,05,Amallarni bajaring: 18 − 12 : 2 + 5 • 3.,/question-assets/admission-2026/math/g5/q05.png,27,,0
+Q26-MATH-G5-06,5,06,Hisoblang: 5 – 4 sm= sm ?,/question-assets/admission-2026/math/g5/q06.png,,,0
+Q26-MATH-G5-07,5,07,Hisoblang: 17 kg – 110 gr = gr ?,/question-assets/admission-2026/math/g5/q07.png,16890,,0
+Q26-MATH-G5-08,5,08,To’rt soat 10 minut necha minutdan iborat \ ?,/question-assets/admission-2026/math/g5/q08.png,250,,0
+Q26-MATH-G5-09,5,09,Hisoblang: (7749 + 3658) – 1749,/question-assets/admission-2026/math/g5/q09.png,9658,,0
+Q26-MATH-G5-10,5,10,Sonni raqamlarda yozing. 4 million 44 ming 44 .,/question-assets/admission-2026/math/g5/q10.png,4044044,,0
+Q26-MATH-G5-11,5,11,Ustaxonada 60 ta stul va stullardan 5 marta kam stollar tayyorlandi. Hammasi bo‘lib nechta stol va stul tayyorlangan?,/question-assets/admission-2026/math/g5/q11.png,72,,0
+Q26-MATH-G5-12,5,12,Elomonning akasi va singlisi bor. Uchalasining yoshini qo‘shib hisoblaganda 10 yosh. 2 yildan keyin ularning birgalikdagi yoshi qancha bo‘ladi?,/question-assets/admission-2026/math/g5/q12.png,16,,0
+Q26-MATH-G5-13,5,13,Komputerda 3 dan 98 gacha bo‘lgan sonlar yozilganda 6 raqami tugmasi necha marta bosiladi?,/question-assets/admission-2026/math/g5/q13.png,20,,0
+Q26-MATH-G5-14,5,14,Toʻgʻri chiziq boʻylab 40 ta ustun oʻrnatildi. Agar 1-va 7-ustunlar orasidagi masofa 18 m ga teng boʻlsa. 2- va 10-ustunlar orasidagi masofa necha metr?,/question-assets/admission-2026/math/g5/q14.png,24,,0
+Q26-MATH-G5-15,5,15,Тomonlari 7 sm va 9 smdan iborat bo‘lgan to‘g‘ri to‘rtburchakning yuzini toping._,/question-assets/admission-2026/math/g5/q15.png,63,,0
+Q26-MATH-G5-16,5,16,Usta 12 m² maydonni 1 soatda bo‘yaydi. U 720 m² yerni qancha minutda bo‘yaydi?,/question-assets/admission-2026/math/g5/q16.png,3600,,0
+Q26-MATH-G5-17,5,17,"Harfli ifodaning qiymatini toping. , bunda y 4.",/question-assets/admission-2026/math/g5/q17.png,,,0
+Q26-MATH-G5-18,5,18,"Agar yanvar oyida 5ta dushanba,5ta seshanba va 5ta chorshanba kelsa 1-fevral haftaning qaysi kuni?",/question-assets/admission-2026/math/g5/q18.png,payshanba,,0
+Q26-MATH-G5-19,5,19,"Tumanda 3 ta, shaharda esa undan 4 marta ko‘p kutubxona bor. Shaharda nechta kutubxona bor?",/question-assets/admission-2026/math/g5/q19.png,12,,0
+Q26-MATH-G5-20,5,20,Hisoblang: 17 km 608m -6km= m ?,/question-assets/admission-2026/math/g5/q20.png,11608,,0
+Q26-MATH-G5-21,5,21,Sayyoh yo’lning qismini 60 minutda bosib o’tdi. So’ngra u tezligini uch marta oshirib harakat qildi. Sayyoh jami yo’lga necha minut vaqt sarladi?,/question-assets/admission-2026/math/g5/q21.png,,,0
+Q26-MATH-G5-22,5,22,Quyidagi shakllardan qaysilarining perimetrlari teng?,/question-assets/admission-2026/math/g5/q22.png,,,0
+Q26-MATH-G5-23,5,23,Tenglamani yeching: (4x + 324) · 5 = 2400,/question-assets/admission-2026/math/g5/q23.png,39,,0
+Q26-MATH-G5-24,5,24,"Uch aka-ukaning umumiy og‘irligi 72 kg, bunda Sardorning og‘irligi ikki ukasining og‘irligiga teng. Sardorning og‘irligi necha kg?.",/question-assets/admission-2026/math/g5/q24.png,36,,0
+Q26-MATH-G5-25,5,25,"Hozir 2023-yil, eng kamida necha yildan keyin yozuvida 0 raqami ishtirok etmagan yil bo’ladi?",/question-assets/admission-2026/math/g5/q25.png,88,,0
+Q26-MATH-G5-26,5,26,"Onasi, otasi va qizi Ra'noning yoshini birga qo'shib hisoblaganda 71 yosh. Ra'no bilan onasi birga 37 yosh, Ra'no bilan otasi esa 42 yosh. Ra'noning yoshini aniqlang",/question-assets/admission-2026/math/g5/q26.png,8,,0
+Q26-MATH-G5-27,5,27,"To’g’ri to’rtburchakning tomonlari 15 sm va 17 sm ga teng. Agar kvadratning yuzi ushbu to’g’ri to’rtburchak perimetriga teng bo’lsa, kvadratning perimetrini toping",/question-assets/admission-2026/math/g5/q27.png,32,,0
+Q26-MATH-G5-28,5,28,Kesma uchta kesmaga bo'lingan. Chetki kesmalarning o'rtalari orasidagi masofa 35 sm ga teng. O'rtadagi kesmaning uzunligi esa 20 sm ga teng. Berilgan kesmaning uzunligini toping,/question-assets/admission-2026/math/g5/q28.png,50,,0
+Q26-MATH-G5-29,5,29,"Kitob sahifalarini nomerlash uchun 940 ta raqam ishlatilgan. Sahifalarni nomerlash 3-sahifadan 3 raqami bilan boshlangan bo’lsa, kitob necha sahifadan iborat?",/question-assets/admission-2026/math/g5/q29.png,350,,0
+Q26-MATH-G5-30,5,30,"Begzod biror son o'yladi. Uni 7 ga bo'ladi, natijaga 7 qo'shadi va natijani yana 7 ga ko'paytiradi. U 777 sonini oladi. U qaysi sonni o'ylagan?",/question-assets/admission-2026/math/g5/q30.png,728,,0
+Q26-MATH-G6-01,6,01,457 856 145 sonining o’nlar xonasidagi raqam bilan yuz minglar xonasidagi raqam ko’paytmasini toping?,/question-assets/admission-2026/math/g6/q01.png,32,,0
+Q26-MATH-G6-02,6,02,Hisoblang:,/question-assets/admission-2026/math/g6/q02.png,1234,,0
+Q26-MATH-G6-03,6,03,1 soat 35 minut + 14 soat 56 minut ni hisoblang?,/question-assets/admission-2026/math/g6/q03.png,16 soat 31 minut,,0
+Q26-MATH-G6-04,6,04,187 ≤ 18a tengsizlik qanoatlantiradigan barcha a larning yig’indisini toping,/question-assets/admission-2026/math/g6/q04.png,24,,0
+Q26-MATH-G6-05,6,05,"Rasmdagi stakanlarning suvlar farqi 108 gramm bo’lsa, ikkinchi stakan to’lishi uchun qancha suv quyish kerak?",/question-assets/admission-2026/math/g6/q05.png,162,,0
+Q26-MATH-G6-06,6,06,"Anvar Nodirdan 3 yosh katta, lekin Botirdan 8 yosh kichik. Ularning eng yoshi kattasi kim?",/question-assets/admission-2026/math/g6/q06.png,Botir,,0
+Q26-MATH-G6-07,6,07,"Quyidagi sonlardan nechtasini o’nlar xonasigacha yaxlitlaganda kamayadi? 459 784, 124 524, 1256, 7458",/question-assets/admission-2026/math/g6/q07.png,2,,0
+Q26-MATH-G6-08,6,08,"C nuqta A va B nuqtalar o’rtasida joylashgan bo’lib, A nuqtaning koordinatasi 32 bo’lib, B nuqtaning koordinatasi 54 bo’lsa, C nuqtaning koordinatasini toping.",/question-assets/admission-2026/math/g6/q08.png,43,C=43||C = 43,0
+Q26-MATH-G6-09,6,09,"Agar p=7 bo‘lsa, quyidagi ifodaning qiymatini toping",/question-assets/admission-2026/math/g6/q09.png,43,,0
+Q26-MATH-G6-10,6,10,Quyidagi tenglamani yeching: .,/question-assets/admission-2026/math/g6/q10.png,,,0
+Q26-MATH-G6-11,6,11,Quyidagi yig’indini hisoblang: 200 - 199 + 198 - 197 + … +2 – 1,/question-assets/admission-2026/math/g6/q11.png,100,,0
+Q26-MATH-G6-12,6,12,"To’gri burchakli parallelepiped shaklidagi omborxonaning bo’yi 32m,eni 27m va hajmi 25 056 . Uning balandligini toping .",/question-assets/admission-2026/math/g6/q12.png,29,,0
+Q26-MATH-G6-13,6,13,Quyidagi rasm qaysi ko’rinishdan berilgan?,/question-assets/admission-2026/math/g6/q13.png,,,0
+Q26-MATH-G6-14,6,14,Litrda ifodalang. 5,/question-assets/admission-2026/math/g6/q14.png,,,0
+Q26-MATH-G6-15,6,15,Tenglamani yeching: 47 (3243,/question-assets/admission-2026/math/g6/q15.png,,,0
+Q26-MATH-G6-16,6,16,A=1000 B= A+B=?,/question-assets/admission-2026/math/g6/q16.png,,,0
+Q26-MATH-G6-17,6,17,"27 ta bola 11 tadan qilib futbol jamoaga bo’linsa, necha nafar bola jamoasiz qoladi?",/question-assets/admission-2026/math/g6/q17.png,5,,0
+Q26-MATH-G6-18,6,18,Quyidagi ifodani soddalashtiring: 3 (o’rta),/question-assets/admission-2026/math/g6/q18.png,,,0
+Q26-MATH-G6-19,6,19,"Anvar bir son o’yladi, uning yarmidan 1 ni ayirdi, hosil bo’lgan sonning yarmidan 2 ni ayirdi, keyin hosil bo’lgan sonning yarmidan 3 ni ayirganda 100 soni hosil bo’ldi",/question-assets/admission-2026/math/g6/q19.png,834,,0
+Q26-MATH-G6-20,6,20,"Agar kubning qirrasi 27 sm bo’lsa, uning hajmini toping?",/question-assets/admission-2026/math/g6/q20.png,19683,,0
+Q26-MATH-G6-21,6,21,Qanday sonning qismi 49 ga teng?,/question-assets/admission-2026/math/g6/q21.png,,,0
+Q26-MATH-G6-22,6,22,?m + km = 975m,/question-assets/admission-2026/math/g6/q22.png,,,0
+Q26-MATH-G6-23,6,23,"To’g’ri to’rtburchakning perimetri 144 sm, uning perimetriga teng bo’lgan kvadratning yuzini toping?",/question-assets/admission-2026/math/g6/q23.png,1296,,0
+Q26-MATH-G6-24,6,24,Radiusi 3 ga teng bo’lgan doiraning yuzini toping?,/question-assets/admission-2026/math/g6/q24.png,9π,,0
+Q26-MATH-G6-25,6,25,ni hisoblang?,/question-assets/admission-2026/math/g6/q25.png,,,0
+Q26-MATH-G6-26,6,26,5/16 va 15/16 ichida nechta maxraji 64 ga teng bo’lgan kasr bor?,/question-assets/admission-2026/math/g6/q26.png,39,,0
+Q26-MATH-G6-27,6,27,Jasur 500 000 soʻm turadigan bir juft jinsi shim sotib olmoqchi. Ayni vaqtda jinsi shim 12% chegirma bilan sotilmoqda. Jasur sotuvchiga qancha pul toʻlashi kerak?,/question-assets/admission-2026/math/g6/q27.png,440000,,0
+Q26-MATH-G6-28,6,28,540 ning 6 foizining 20 foizi nechaga teng?,/question-assets/admission-2026/math/g6/q28.png,6.48,,0
+Q26-MATH-G6-29,6,29,"2 ta sonning yig’indisi 3,14 ga teng, ulardan birinchisi 100 dan 98 ga kam, 2 chi sonni toping?",/question-assets/admission-2026/math/g6/q29.png,1.14,,0
+Q26-MATH-G6-30,6,30,"Qirralarining uzunliklari mos ravishda 2, 4, 8 sm bo’lgan to’g’ri burchakli",/question-assets/admission-2026/math/g6/q30.png,,,0
+Q26-MATH-G7-01,7,01,Hisoblang:,/question-assets/admission-2026/math/g7/q01.png,"150,000",150000||150 000,0
+Q26-MATH-G7-02,7,02,Agar 𝐵 = 2𝑎 − 3𝑎𝑏 + 4𝑏2 𝐶 = − 4𝑎2 + 2𝑎𝑏 + 3𝑏2 bo`lsa B – C = ?,/question-assets/admission-2026/math/g7/q02.png,4a^2+2a-5ab+b^2,,0
+Q26-MATH-G7-03,7,03,Tenglamani yeching:,/question-assets/admission-2026/math/g7/q03.png,x= -5,-5,0
+Q26-MATH-G7-04,7,04,3 sutka 8 soat 15 minutni minutlarda ifodalang.,/question-assets/admission-2026/math/g7/q04.png,4815,,0
+Q26-MATH-G7-05,7,05,Ushbu shakl 4 ta chorak aylanadan iborat. Ushbu shaklning yuzini toping.,/question-assets/admission-2026/math/g7/q05.png,98 cm^2,,0
+Q26-MATH-G7-06,7,06,Ifodani soddalashtiring :,/question-assets/admission-2026/math/g7/q06.png,"7,5a^5b^5c^7","7.5a^5b^5c^7||7,5a⁵b⁵c⁷||7.5a⁵b⁵c⁷",0
+Q26-MATH-G7-07,7,07,Hisoblang: 5 1 : 2 1 = 1 1 𝑥: 1 1 4 3 5 3,/question-assets/admission-2026/math/g7/q07.png,x = 2.5,5/2||2.5,0
+Q26-MATH-G7-08,7,08,"Agar kasrning surati 50% ga, maxraji esa 20% ga oshsa, kasrning qiymati qanday o‘zgaradi?",/question-assets/admission-2026/math/g7/q08.png,25% ga oshadi,,0
+Q26-MATH-G7-09,7,09,Quyidagi shaklni yuzini toping,/question-assets/admission-2026/math/g7/q09.png,26 cm^2,26,0
+Q26-MATH-G7-10,7,10,"30 ning qismini , qismi 32 ga teng bo’lgan songa qo’shing.",/question-assets/admission-2026/math/g7/q10.png,128,,0
+Q26-MATH-G7-11,7,11,"To’g’ri to’rtburchakning bo’yi 50 sm, eni 40 sm. Uning bo’yi 10% ga, eni esa 15% ga uzaytirildi. Hosil bo’lgan yangi to’g’ri to’rtburchakning perimetrini toping.",/question-assets/admission-2026/math/g7/q11.png,202,,0
+Q26-MATH-G7-12,7,12,Hisoblang:,/question-assets/admission-2026/math/g7/q12.png,18,,0
+Q26-MATH-G7-13,7,13,Ifodani qiymati qanday raqam bilan tugaydi: 552024 + 662025 – 772026,/question-assets/admission-2026/math/g7/q13.png,2,,0
+Q26-MATH-G7-14,7,14,Soddalashtiring:,/question-assets/admission-2026/math/g7/q14.png,,,0
+Q26-MATH-G7-15,7,15,Hisoblang:,/question-assets/admission-2026/math/g7/q15.png,,,0
+Q26-MATH-G7-16,7,16,"O’ylangan sondan 2 marta 2 1 ni, 3 marta 1 ni, 2 marta 2 ni ayirgandan 4 8 3 so’ng 3 11 qoldi. O’ylangan sonni toping. 24",/question-assets/admission-2026/math/g7/q16.png,,,0
+Q26-MATH-G7-17,7,17,O’lchamlari 24 m va 15 m bo’lgan zalni tomoni 20 sm bo’lgan kvadrat shaklidagi plitalardan nechtasi bilan qoplash mumkin?,/question-assets/admission-2026/math/g7/q17.png,9000,,0
+Q26-MATH-G7-18,7,18,Hisoblang:,/question-assets/admission-2026/math/g7/q18.png,,,0
+Q26-MATH-G7-19,7,19,"Agar f(x) = 𝑥2-11x+44 bo‘lsa, f(2) ni toping",/question-assets/admission-2026/math/g7/q19.png,26,,0
+Q26-MATH-G7-20,7,20,Tenglamani yeching:,/question-assets/admission-2026/math/g7/q20.png,,,0
+Q26-MATH-G7-21,7,21,Tenglamaning yechimlari ko‘paytmasini toping:,/question-assets/admission-2026/math/g7/q21.png,,,0
+Q26-MATH-G7-22,7,22,Hisoblang:,/question-assets/admission-2026/math/g7/q22.png,,,0
+Q26-MATH-G7-23,7,23,"Rasmdagi kvadrat va teng tomonli uchburchak peremetrlari teng bo’lsa, kvadrat yuzi necha 𝑠𝑚2 ga teng?",/question-assets/admission-2026/math/g7/q23.png,,,0
+Q26-MATH-G7-24,7,24,Tenglamani yeching:,/question-assets/admission-2026/math/g7/q24.png,,,0
+Q26-MATH-G7-25,7,25,𝑥 𝑔𝑎 𝑡𝑒𝑠𝑘𝑎𝑟𝑖 𝑠𝑜𝑛 𝒙 𝑛𝑖𝑛𝑔 36% 𝑖𝑔𝑎 𝑡𝑒𝑛𝑔 bo’lsa ; 𝑥 ni toping.,/question-assets/admission-2026/math/g7/q25.png,±5/3,,0
+Q26-MATH-G7-26,7,26,1 dan 100 gacha bo’lgan sonlar ichida 2 ga ham 3 ga ham bo’linmaydiganlari nechta?,/question-assets/admission-2026/math/g7/q26.png,33,,0
+Q26-MATH-G7-27,7,27,Hisoblang: 1-3+5-7+...+97-99,/question-assets/admission-2026/math/g7/q27.png,-50,,0
+Q26-MATH-G7-28,7,28,Ko’phadni ko’phadga bo’ling : x3-3x2+9x-27 ni (x-3),/question-assets/admission-2026/math/g7/q28.png,x^2+9,,0
+Q26-MATH-G7-29,7,29,Ikki shahar orasidagi masofa 156 km . Bu masofa 1:600000 masshtabli xaritada necha santimetrga teng bo'ladi?,/question-assets/admission-2026/math/g7/q29.png,26,,0
+Q26-MATH-G7-30,7,30,Yon tomondagi rasmda bir nechta stakanlarni ustma-ust qo’yib 2 ta stek tayyorlangan. 1-stekning balandligi 42 sm 2- stekning balandligi esa 18 sm ga teng. Uchta xuddi shunday stakanni ustma ust qo’yib yasalgan stekning balandligini toping.,/question-assets/admission-2026/math/g7/q30.png,,,0
+Q26-MATH-G8-9-01,8-9,01,"4x + 9 = 33 bo’lsa, x ning qiymati nechaga teng?",/question-assets/admission-2026/math/g8-9/q01.png,6,,0
+Q26-MATH-G8-9-02,8-9,02,Bir sonning 15% i 30 ga teng. Bu son nechaga teng?,/question-assets/admission-2026/math/g8-9/q02.png,200,,0
+Q26-MATH-G8-9-03,8-9,03,To’g’ri to’rtburchakning uzunligi 12 va eni 5 ga teng. Uning perimetri nechaga teng?,/question-assets/admission-2026/math/g8-9/q03.png,34,,0
+Q26-MATH-G8-9-04,8-9,04,g funksiyasi g(x) = 3x−5 ko’rinishida berilgan. g(−2) ning qiymati nechaga teng?,/question-assets/admission-2026/math/g8-9/q04.png,-11,,0
+Q26-MATH-G8-9-05,8-9,05,Quyida tenglamalar sistemasi berilgan. y ning qiymati nechaga teng?,/question-assets/admission-2026/math/g8-9/q05.png,,,0
+Q26-MATH-G8-9-06,8-9,06,"Quyidagi ifoda + bx + 21 (x+3)(x+c) ko’rinishida ko’paytuvchilarga ajratiladi, bunda b va c – o’zgarmaslar. b ning qiymati nechaga teng?",/question-assets/admission-2026/math/g8-9/q06.png,10,,0
+Q26-MATH-G8-9-07,8-9,07,Retsept bo’yicha 24 ta pechenye tayyorlash uchun 3 stakan un kerak. Shu me’yorda 40 ta pechenye tayyorlash uchun nechta stakan un kerak bo’ladi?,/question-assets/admission-2026/math/g8-9/q07.png,5,,0
+Q26-MATH-G8-9-08,8-9,08,Doiraning yuzi 36π ga teng. Doiraning diametri nechaga teng?,/question-assets/admission-2026/math/g8-9/q08.png,12,,0
+Q26-MATH-G8-9-09,8-9,09,"{7, 9, 11, x, 17, 20} to’plamining medianasi 13 ga teng, bunda 11 < x < 17. x ning qiymati nechaga teng?",/question-assets/admission-2026/math/g8-9/q09.png,15,,0
+Q26-MATH-G8-9-10,8-9,10,"Agar = 81 bo’lsa, x ning qiymati nechaga teng?",/question-assets/admission-2026/math/g8-9/q10.png,,,0
+Q26-MATH-G8-9-11,8-9,11,"Ma’lumki, a= , b= va c= . a, b va c ni qiymati bo’yicha kichikdan kattaga qarab joylashtiring.",/question-assets/admission-2026/math/g8-9/q11.png,,,0
+Q26-MATH-G8-9-12,8-9,12,"{3, 5, 5, 7, 9, 5, 10} to’plamining modasi (eng ko’p uchraydigan qiymati) nechaga teng?",/question-assets/admission-2026/math/g8-9/q12.png,5,,0
+Q26-MATH-G8-9-13,8-9,13,Kubning qirrasi 4 ga teng. Kubning hajmi nechaga teng?,/question-assets/admission-2026/math/g8-9/q13.png,64,,0
+Q26-MATH-G8-9-14,8-9,14,xy-tekislikda y = −3x+6 grafigi y o’qini quyidagi nuqtalarning qaysi birida kesib o’tadi?,/question-assets/admission-2026/math/g8-9/q14.png,(0;6),,0
+Q26-MATH-G8-9-15,8-9,15,"xy-tekislikda ax +3y = 12 tenglamasining grafigi (3, 2) nuqtadan o’tadi, bunda a – o’zgarmas son. a ning qiymati nechaga teng?",/question-assets/admission-2026/math/g8-9/q15.png,2,,0
+Q26-MATH-G8-9-16,8-9,16,a va b o’zgarmaslar uchun (x + a)(x + b) = + 7x +12 tengligi x ning barcha qiymatlarida o’rinli. ab ning qiymati nechaga teng?,/question-assets/admission-2026/math/g8-9/q16.png,12,,0
+Q26-MATH-G8-9-17,8-9,17,"Bir kunda novvoyxonada 240 ta mahsulot sotilgan. Agar sotilgan mahsulotlarning 30% i tortlar bo’lsa, o’sha kuni nechta tort sotilgan?",/question-assets/admission-2026/math/g8-9/q17.png,72,,0
+Q26-MATH-G8-9-18,8-9,18,Avtomobil 240 milya masofani soatiga 60 milya doimiy tezlik bilan bosib o’tadi. Bu sayohat necha soat davom etadi?,/question-assets/admission-2026/math/g8-9/q18.png,4,,0
+Q26-MATH-G8-9-19,8-9,19,"x, 2x, 3x va 4x sonlarining arifmetik o’rtachasi 25 ga teng. x ning qiymati nechaga teng?",/question-assets/admission-2026/math/g8-9/q19.png,10,,0
+Q26-MATH-G8-9-20,8-9,20,"Agar = 125 bo’lsa, ?",/question-assets/admission-2026/math/g8-9/q20.png,,,0
+Q26-MATH-G8-9-21,8-9,21,"Funksiya f(x) = - 13 , bunda a . f(14a) va f(5a) ning ko’paytmasi nechaga teng?",/question-assets/admission-2026/math/g8-9/q21.png,,,0
+Q26-MATH-G8-9-22,8-9,22,"Shakl yarim doiradan, to’g’ri to’rtburchakdan va uchburchakdan iborat. Uning y Rasmda ABCD parallelogramm berilgan. x ni toping =? uzini toping (bunda",/question-assets/admission-2026/math/g8-9/q22.png,,,0
+Q26-MATH-G8-9-23,8-9,23,"Yong’inga qarshi mashqda o’g’il bolalar sonining qiz bolalar soniga nisbati 3:4 ga teng. Agar 270 ta o’g’il bola bo’lsa, nechta qiz bola bor?",/question-assets/admission-2026/math/g8-9/q23.png,360,,0
+Q26-MATH-G8-9-24,8-9,24,"Maftuna pulining qismini kitobga, qismini daftarga va qismini ruchkaga sarfladi. Agar unda 35 000 so’m qolgan bo’lsa, daftar necha so’m turadi?",/question-assets/admission-2026/math/g8-9/q24.png,,,0
+Q26-MATH-G8-9-25,8-9,25,"Agar kasrning surati 50% ga va maxraji 20% ga oshsa, kasrning qiymati qanday o’zgaradi?",/question-assets/admission-2026/math/g8-9/q25.png,25% ga oshadi,,0
+Q26-MATH-G8-9-26,8-9,26,"Ifodani soddalashtiring: (-2c)(-1a)2,5c",/question-assets/admission-2026/math/g8-9/q26.png,5ac^2,,0
+Q26-MATH-G8-9-27,8-9,27,"Greg pulining qismini yozuv mashinkasiga sarfladi. Agar yozuv mashinkasi 120 dollar tursa, uning boshida qancha puli bo’lgan?",/question-assets/admission-2026/math/g8-9/q27.png,,,0
+Q26-MATH-G8-9-28,8-9,28,Davriy kasrlarni hisoblang;,/question-assets/admission-2026/math/g8-9/q28.png,,,0
+Q26-MATH-G8-9-29,8-9,29,Hisoblang; EKUB(200;360) + EKUK(48;45),/question-assets/admission-2026/math/g8-9/q29.png,760,,0
+Q26-MATH-G8-9-30,8-9,30,Rasmda ABCD parallelogramm berilgan. x ni toping =?,/question-assets/admission-2026/math/g8-9/q30.png,,,0
+Q26-MATH-G10-11-01,10-11,01,"𝑎, 𝑏,𝑐 − turli raqamlar bo’lsa, 90𝑎 − 10𝑏 + 𝑐 ning eng katta qiymatini toping.",/question-assets/admission-2026/math/g10-11/q01.png,818,,0
+Q26-MATH-G10-11-02,10-11,02,Matematika savoli 2,/question-assets/admission-2026/math/g10-11/q02.png,1,,0
+Q26-MATH-G10-11-03,10-11,03,125! soni 6 ning qanday eng katta darajasiga bo’linadi?,/question-assets/admission-2026/math/g10-11/q03.png,59,,0
+Q26-MATH-G10-11-04,10-11,04,Hisoblang: 100 + 95 + 90 + ⋯ − 70,/question-assets/admission-2026/math/g10-11/q04.png,525,,0
+Q26-MATH-G10-11-05,10-11,05,𝑥 2 − 2𝑥 + 9 < (𝑥 + 1)(𝑥 + 3) tengsizlikni yeching.,/question-assets/admission-2026/math/g10-11/q05.png,x>1,,0
+Q26-MATH-G10-11-06,10-11,06,"10 kishidan 1 ta boshliq, 2 ta yordamchi 2 ta mutaxasisni necha xil usulda tanlanadi",/question-assets/admission-2026/math/g10-11/q06.png,7560,,0
+Q26-MATH-G10-11-07,10-11,07,Teng yonli uchburchakning 2 ta tomoni uzunligi 8 va 3 cm bo’lsa uning perimetri necha cm bo’ladi?,/question-assets/admission-2026/math/g10-11/q07.png,19,,0
+Q26-MATH-G10-11-08,10-11,08,Matematika savoli 8,/question-assets/admission-2026/math/g10-11/q08.png,2x,,0
+Q26-MATH-G10-11-09,10-11,09,Matematika savoli 9,/question-assets/admission-2026/math/g10-11/q09.png,,,0
+Q26-MATH-G10-11-10,10-11,10,Matematika savoli 10,/question-assets/admission-2026/math/g10-11/q10.png,,,0
+Q26-MATH-G10-11-11,10-11,11,𝑎 ning qanday qiymatida 2𝑥(𝑥 + 𝑎) − 𝑎𝑥 = 𝑎 + 3𝑥 tenglamaning ildizlaridan biri 2 ga teng bo’ladi?,/question-assets/admission-2026/math/g10-11/q11.png,-2,,0
+Q26-MATH-G10-11-12,10-11,12,Soatning minut mili 4 minutda necha gradusga buriladi?,/question-assets/admission-2026/math/g10-11/q12.png,24,,0
+Q26-MATH-G10-11-13,10-11,13,Matematika savoli 13,/question-assets/admission-2026/math/g10-11/q13.png,,,0
+Q26-MATH-G10-11-14,10-11,14,Matematika savoli 14,/question-assets/admission-2026/math/g10-11/q14.png,,,0
+Q26-MATH-G10-11-15,10-11,15,Burchak koeffitsiyenti 2 ga teng bo’lgan va (1;3) nuqtadan o’tuvchi to’g’ri chiziq tenglamasini tuzing.,/question-assets/admission-2026/math/g10-11/q15.png,y=2x+1,,0
+Q26-MATH-G10-11-16,10-11,16,Matematika savoli 16,/question-assets/admission-2026/math/g10-11/q16.png,999/1001,999:1001,0
+Q26-MATH-G10-11-17,10-11,17,Matematika savoli 17,/question-assets/admission-2026/math/g10-11/q17.png,,,0
+Q26-MATH-G10-11-18,10-11,18,"𝐴𝐵𝐶 uchburchakda ∠𝐴𝐵𝐶 = 48 va ∠𝐴𝐶𝐵 = 54 bo’lsa, uchburchakning 𝐴𝐷 balandligi va 𝐴𝐿 bissektrisasi orasidagi burchakni toping.",/question-assets/admission-2026/math/g10-11/q18.png,3,,0
+Q26-MATH-G10-11-19,10-11,19,Matematika savoli 19,/question-assets/admission-2026/math/g10-11/q19.png,,,0
+Q26-MATH-G10-11-20,10-11,20,Matematika savoli 20,/question-assets/admission-2026/math/g10-11/q20.png,,,0
+Q26-MATH-G10-11-21,10-11,21,"To’rtburchakning 3 ta tomoni uzunligi 2, 5, 8 ga teng bo’lsa, uning to’rtinchi tomoni uzunligi qanday qiymatni qabul qila oladi?",/question-assets/admission-2026/math/g10-11/q21.png,1<d<15,,0
+Q26-MATH-G10-11-22,10-11,22,Matematika savoli 22,/question-assets/admission-2026/math/g10-11/q22.png,,,0
+Q26-MATH-G10-11-23,10-11,23,Matematika savoli 23,/question-assets/admission-2026/math/g10-11/q23.png,36,,0
+Q26-MATH-G10-11-24,10-11,24,Matematika savoli 24,/question-assets/admission-2026/math/g10-11/q24.png,,,0
+Q26-MATH-G10-11-25,10-11,25,Matematika savoli 25,/question-assets/admission-2026/math/g10-11/q25.png,2109,,0
+Q26-MATH-G10-11-26,10-11,26,"Teng yonli uchburchakning yon tomoni 17 ga, asosi 30 ga teng. Uchburchakning asosiga tushurilgan balandlik uzunligini toping.",/question-assets/admission-2026/math/g10-11/q26.png,8,,0
+Q26-MATH-G10-11-27,10-11,27,"Shahar markazida yangi va katta kutubxona qurildi. Eski kutubxonadan yangi kutubxonaga kitoblarni ko`chirish kerak. Farruhning brigadasi 8 kun va Ikromning brigadasi 12 kun ishlasa, yoki Farruhning brigadasi 10 kun va Ikromning brigadasi 5 kun ishlasa kitoblar tugaydi. Agar faqat Ikromning brigadasi ishlasa kitoblar necha kunda tugaydi?",/question-assets/admission-2026/math/g10-11/q27.png,40,,0
+Q26-MATH-G10-11-28,10-11,28,Matematika savoli 28,/question-assets/admission-2026/math/g10-11/q28.png,88,,0
+Q26-MATH-G10-11-29,10-11,29,"Yo‘lovchi mototsiklda yo‘lining 32% ini 16 𝑘𝑚/𝑠 tezlik bilan, 28% ini esa 20 𝑘𝑚/𝑠 tezlik bilan, qolgan qismini 25 𝑘𝑚/𝑠 tezlik bilan jami 8 soatda bosib o‘tdi. Yo‘lovchi necha km masofani bosib o‘tgan?",/question-assets/admission-2026/math/g10-11/q29.png,160,,0
+Q26-MATH-G10-11-30,10-11,30,Matematika savoli 30,/question-assets/admission-2026/math/g10-11/q30.png,1.5,3/2||3:2,0
