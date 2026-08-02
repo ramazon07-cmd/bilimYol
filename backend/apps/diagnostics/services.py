@@ -77,7 +77,6 @@ def is_manual_exam(exam) -> bool:
     return exam.exam_questions.filter(question__options__label="TEXT").exists()
 
 
-@transaction.atomic
 def submit_manual_attempt(
     attempt: ExamAttempt,
     submitted_by=None,
@@ -106,12 +105,34 @@ def submit_manual_attempt(
             mark_profile=mark_profile,
         )
 
-    attempt.status = ExamAttempt.Status.PENDING_REVIEW
-    attempt.submitted_at = timezone.now()
-    attempt.submitted_by = submitted_by
-    attempt.save(update_fields=["status", "submitted_at", "submitted_by"])
-    attempt.assignment.is_active = False
-    attempt.assignment.save(update_fields=["is_active"])
+    with transaction.atomic():
+        locked_attempt = (
+            ExamAttempt.objects
+            .select_for_update()
+            .select_related("assignment")
+            .get(pk=attempt.pk)
+        )
+
+        if locked_attempt.status != ExamAttempt.Status.IN_PROGRESS:
+            raise ValidationError(
+                "Bu urinish allaqachon yakunlangan."
+            )
+
+        locked_attempt.status = ExamAttempt.Status.PENDING_REVIEW
+        locked_attempt.submitted_at = timezone.now()
+        locked_attempt.submitted_by = submitted_by
+        locked_attempt.save(
+            update_fields=[
+                "status",
+                "submitted_at",
+                "submitted_by",
+            ]
+        )
+
+        assignment = locked_attempt.assignment
+        assignment.is_active = False
+        assignment.save(update_fields=["is_active"])
+
     return None
 
 
