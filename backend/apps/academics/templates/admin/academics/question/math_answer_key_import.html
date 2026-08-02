@@ -1,0 +1,72 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Bosh sahifa</a>
+    &rsaquo;
+    <a href="{% url 'admin:academics_question_changelist' %}">
+        Savollar
+    </a>
+    &rsaquo;
+    Matematika javoblarini yuklash
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Matematika javoblarini CSV orqali yuklash</h1>
+
+    <div
+        style="
+            max-width: 750px;
+            padding: 20px;
+            margin-bottom: 24px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fff;
+        "
+    >
+        <p>
+            CSV faylda kamida quyidagi ustunlar bo‘lishi kerak:
+        </p>
+
+        <pre>code,correct_answer,alternative_answers,tolerance</pre>
+
+        <p>
+            Bir nechta muqobil javobni
+            <strong>||</strong> bilan ajrating.
+        </p>
+
+        <p>
+            Masalan:
+        </p>
+
+        <pre>Q26-MATH-G6-08,43,C=43||C = 43,0</pre>
+    </div>
+
+    <form
+        method="post"
+        enctype="multipart/form-data"
+        style="max-width: 750px;"
+    >
+        {% csrf_token %}
+
+        {{ form.as_p }}
+
+        <div class="submit-row">
+            <input
+                type="submit"
+                value="CSV faylni yuklash"
+                class="default"
+            >
+
+            <a
+                href="{% url 'admin:academics_question_changelist' %}"
+                style="margin-left: 15px;"
+            >
+                Bekor qilish
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
