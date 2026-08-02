@@ -69,6 +69,7 @@ class ExamAssignment(models.Model):
 class ExamAttempt(models.Model):
     class Status(models.TextChoices):
         IN_PROGRESS = "in_progress", "Jarayonda"
+        PENDING_REVIEW = "pending_review", "Ustoz tekshiruvi kutilmoqda"
         SUBMITTED = "submitted", "Topshirildi"
         EXPIRED = "expired", "Vaqt tugadi"
 
@@ -111,6 +112,9 @@ class StudentAnswer(models.Model):
     attempt = models.ForeignKey(ExamAttempt, on_delete=models.CASCADE, related_name="answers")
     exam_question = models.ForeignKey(ExamQuestion, on_delete=models.PROTECT, related_name="student_answers")
     selected_option = models.ForeignKey(QuestionOption, on_delete=models.PROTECT, related_name="student_selections")
+    text_answer = models.TextField(blank=True)
+    manual_score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    is_graded = models.BooleanField(default=False)
     is_correct = models.BooleanField(default=False)
     earned_points = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     is_flagged = models.BooleanField(default=False)

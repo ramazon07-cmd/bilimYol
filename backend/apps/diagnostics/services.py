@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.academics.policies import is_enabled_diagnostic_exam
+from .text_answer_grading import grade_attempt_from_answer_key
 
 from .models import (
     DiagnosticReport,
@@ -72,6 +73,68 @@ def confidence_for(question_count: int) -> str:
     return "low"
 
 
+def is_manual_exam(exam) -> bool:
+    return exam.exam_questions.filter(question__options__label="TEXT").exists()
+
+
+@transaction.atomic
+def submit_manual_attempt(
+    attempt: ExamAttempt,
+    submitted_by=None,
+    *,
+    build_roadmap_after=True,
+    mark_profile=True,
+) -> DiagnosticReport | None:
+    if attempt.status != ExamAttempt.Status.IN_PROGRESS:
+        raise ValidationError("Bu urinish allaqachon yakunlangan.")
+    expected = attempt.assignment.exam.exam_questions.count()
+    answered = (
+        attempt.answers.filter(selected_option__label="TEXT")
+        .exclude(text_answer="")
+        .count()
+    )
+    if answered < expected:
+        raise ValidationError(
+            f"Yana {expected - answered} ta yozma savolga javob berilmagan."
+        )
+
+    if grade_attempt_from_answer_key(attempt):
+        return submit_attempt(
+            attempt,
+            submitted_by=submitted_by,
+            build_roadmap_after=build_roadmap_after,
+            mark_profile=mark_profile,
+        )
+
+    attempt.status = ExamAttempt.Status.PENDING_REVIEW
+    attempt.submitted_at = timezone.now()
+    attempt.submitted_by = submitted_by
+    attempt.save(update_fields=["status", "submitted_at", "submitted_by"])
+    attempt.assignment.is_active = False
+    attempt.assignment.save(update_fields=["is_active"])
+    return None
+
+
+def finalize_manual_attempt(attempt: ExamAttempt, graded_by=None) -> DiagnosticReport:
+    if attempt.status != ExamAttempt.Status.PENDING_REVIEW:
+        raise ValidationError("Bu urinish tekshiruv holatida emas.")
+    answers = attempt.answers.filter(selected_option__label="TEXT")
+    expected = attempt.assignment.exam.exam_questions.count()
+    if answers.count() != expected:
+        raise ValidationError("Barcha yozma javoblar topilmadi.")
+    if answers.filter(is_graded=False).exists() or answers.filter(manual_score__isnull=True).exists():
+        raise ValidationError("Avval barcha javoblarga ball qo‘ying va tekshirildi deb belgilang.")
+    attempt.status = ExamAttempt.Status.IN_PROGRESS
+    attempt.save(update_fields=["status"])
+    return submit_attempt(
+        attempt,
+        submitted_by=graded_by,
+        allow_inactive_exam=True,
+        build_roadmap_after=True,
+        mark_profile=True,
+    )
+
+
 def submit_attempt(
     attempt: ExamAttempt,
     submitted_by=None,
@@ -126,12 +189,45 @@ def _submit_attempt_in_transaction(
 
     for exam_question in exam_questions:
         answer = answers.get(exam_question.id)
-        is_correct = bool(
-            answer
-            and answer.selected_option.question_id == exam_question.question_id
-            and answer.selected_option.is_correct
-        )
-        earned = exam_question.points if is_correct else Decimal("0")
+        is_manual = bool(answer and answer.selected_option.label == "TEXT")
+        if is_manual:
+            raw_score = answer.manual_score if answer and answer.is_graded else Decimal("0")
+            earned = max(Decimal("0"), min(exam_question.points, raw_score or Decimal("0")))
+            is_correct = earned == exam_question.points
+        else:
+            is_text_answer = bool(
+                answer
+                and answer.selected_option
+                and answer.selected_option.label == "TEXT"
+            )
+
+            if is_text_answer:
+                raw_score = (
+                    answer.manual_score
+                    if answer.is_graded and answer.manual_score is not None
+                    else Decimal("0")
+                )
+
+                earned = max(
+                    Decimal("0"),
+                    min(exam_question.points, raw_score),
+                )
+
+                is_correct = earned == exam_question.points
+            else:
+                is_correct = bool(
+                    answer
+                    and answer.selected_option
+                    and answer.selected_option.question_id
+                    == exam_question.question_id
+                    and answer.selected_option.is_correct
+                )
+
+                earned = (
+                    exam_question.points
+                    if is_correct
+                    else Decimal("0")
+                )
         if answer:
             answer.is_correct = is_correct
             answer.earned_points = earned
@@ -375,7 +471,9 @@ def start_attempt(assignment, started_by=None):
     question_order = list(
         assignment.exam.exam_questions.order_by("order", "id").values_list("id", flat=True)
     )
-    SystemRandom().shuffle(question_order)
+    # Qabul 2026 hujjatlarida savollar osondan qiyinga original tartibda berilgan.
+    if not assignment.exam.title.startswith("Qabul 2026"):
+        SystemRandom().shuffle(question_order)
     return ExamAttempt.objects.create(
         assignment=assignment,
         started_by=started_by,

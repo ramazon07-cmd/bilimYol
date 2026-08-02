@@ -69,6 +69,19 @@ class Question(models.Model):
     min_grade = models.PositiveSmallIntegerField(null=True, blank=True)
     max_grade = models.PositiveSmallIntegerField(null=True, blank=True)
     default_points = models.DecimalField(max_digits=6, decimal_places=2, default=1)
+    accepted_text_answers = models.TextField(
+        blank=True,
+        help_text=(
+            "Yozma savol uchun qabul qilinadigan javoblar. "
+            "Har bir muqobil javobni yangi qatorda yozing."
+        ),
+    )
+    answer_tolerance = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        default=0,
+        help_text="Sonli javoblar uchun ruxsat etilgan farq. Masalan: 0.01",
+    )
     image_url = models.URLField(blank=True)
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_questions")

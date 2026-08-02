@@ -22,7 +22,7 @@ from .serializers import (
     RoadmapSerializer,
     WeeklyTaskSerializer,
 )
-from .services import start_attempt, submit_attempt
+from .services import is_manual_exam, start_attempt, submit_attempt, submit_manual_attempt
 from apps.communications.models import Notification
 from apps.communications.services import family_users, notify_users
 
@@ -280,16 +280,26 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
             raise ValidationError("Urinish faol emas yoki vaqt tugagan.")
         exam_question_id = request.data.get("exam_question")
         selected_option_id = request.data.get("selected_option")
+        text_answer = str(request.data.get("text_answer") or "").strip()
         is_flagged = bool(request.data.get("is_flagged", False))
         try:
             exam_question = attempt.assignment.exam.exam_questions.select_related("question").get(id=exam_question_id)
-            option = exam_question.question.options.get(id=selected_option_id)
+            if text_answer:
+                option = exam_question.question.options.get(label="TEXT")
+            else:
+                option = exam_question.question.options.get(id=selected_option_id)
         except (ExamQuestion.DoesNotExist, QuestionOption.DoesNotExist, ValueError, TypeError) as exc:
             raise ValidationError("Savol yoki javob varianti noto‘g‘ri.") from exc
         saved_answer, _ = StudentAnswer.objects.update_or_create(
             attempt=attempt,
             exam_question=exam_question,
-            defaults={"selected_option": option, "is_flagged": is_flagged},
+            defaults={
+                "selected_option": option,
+                "text_answer": text_answer,
+                "is_flagged": is_flagged,
+                "manual_score": None if option.label == "TEXT" else 0,
+                "is_graded": option.label != "TEXT",
+            },
         )
         # Frontend answer response ichidagi to‘liq attemptni ishlatmaydi.
         # Kichik ACK qaytarish har bir autosave’da katta serializer/prefetchni yo‘qotadi.
@@ -298,6 +308,7 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
             "attempt": attempt.id,
             "exam_question": saved_answer.exam_question_id,
             "selected_option": saved_answer.selected_option_id,
+            "text_answer": saved_answer.text_answer,
             "is_flagged": saved_answer.is_flagged,
             "answered_at": saved_answer.answered_at,
         })
@@ -316,19 +327,65 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
                     student=assignment.student,
                     batch_id=assignment.batch_id,
                     is_active=True,
-                    batch_order__gt=assignment.batch_order,
+                )
+                .exclude(id=assignment.id)
+                .exclude(
+                    attempts__status__in=[
+                        ExamAttempt.Status.SUBMITTED,
+                        ExamAttempt.Status.EXPIRED,
+                    ]
                 )
                 .select_related("exam", "student", "classroom")
                 .order_by("batch_order", "id")
+                .distinct()
                 .first()
             )
 
-        report = submit_attempt(
-            attempt,
-            submitted_by=request.user,
-            build_roadmap_after=next_assignment is None,
-            mark_profile=next_assignment is None,
-        )
+        if is_manual_exam(assignment.exam):
+            report = submit_manual_attempt(
+                attempt,
+                submitted_by=request.user,
+                build_roadmap_after=next_assignment is None,
+                mark_profile=next_assignment is None,
+            )
+            if report is None:
+                if next_assignment is not None:
+                    next_attempt = start_attempt(
+                        next_assignment, started_by=request.user
+                    )
+                    return response.Response({
+                        "flow": "next_test",
+                        "batch_id": str(assignment.batch_id),
+                        "completed_title": assignment.exam.title,
+                        "report": None,
+                        "next_assignment": AssignmentSerializer(
+                            next_assignment, context={"request": request}
+                        ).data,
+                        "next_attempt": AttemptSerializer(
+                            next_attempt, context={"request": request}
+                        ).data,
+                    })
+                return response.Response({
+                    "flow": "pending_review",
+                    "batch_id": (
+                        str(assignment.batch_id) if assignment.batch_id else None
+                    ),
+                    "completed_title": assignment.exam.title,
+                    "attempt": AttemptSerializer(
+                        attempt, context={"request": request}
+                    ).data,
+                    "detail": (
+                        "Matematika javoblari saqlandi. "
+                        "Javob kaliti to‘liq kiritilgach avtomatik baholanadi."
+                    ),
+                })
+        else:
+            report = submit_attempt(
+                attempt,
+                submitted_by=request.user,
+                build_roadmap_after=next_assignment is None,
+                mark_profile=next_assignment is None,
+            )
         student = assignment.student
 
         if next_assignment is not None:
@@ -369,6 +426,21 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         if assignment.batch_id and assignment.batch_size > 1:
+            pending_review = ExamAttempt.objects.filter(
+                assignment__student=student,
+                assignment__batch_id=assignment.batch_id,
+                status=ExamAttempt.Status.PENDING_REVIEW,
+            ).exists()
+            if pending_review:
+                return response.Response({
+                    "flow": "pending_review",
+                    "batch_id": str(assignment.batch_id),
+                    "completed_title": assignment.exam.title,
+                    "report": DiagnosticReportSerializer(
+                        report, context={"request": request}
+                    ).data,
+                    "detail": "English natijasi saqlandi. Yakuniy natija matematika tekshirilgach chiqadi.",
+                })
             batch_reports = list(
                 DiagnosticReport.objects.filter(
                     attempt__assignment__student=student,

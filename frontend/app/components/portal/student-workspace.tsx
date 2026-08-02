@@ -45,16 +45,18 @@ import {
 type StudentAttempt = {
   id: number;
   assignment: number;
-  status: "in_progress" | "submitted" | "expired";
+  status: "in_progress" | "pending_review" | "submitted" | "expired";
   remaining_seconds: number;
   question_order: number[];
-  answers: { exam_question: number; selected_option: number }[];
+  answers: { exam_question: number; selected_option: number; text_answer?: string }[];
 };
 
 type SubmitAttemptResponse = LiveDiagnosticReport | {
-  flow: "next_test" | "complete";
-  batch_id: string;
-  report: LiveDiagnosticReport;
+  flow: "next_test" | "complete" | "pending_review";
+  batch_id: string | null;
+  report?: LiveDiagnosticReport | null;
+  completed_title?: string;
+  detail?: string;
   next_assignment?: LiveAssignment;
   next_attempt?: StudentAttempt;
   combined_report?: LiveDiagnosticReportDetail;
@@ -160,7 +162,7 @@ export function StudentWorkspace({
   const [roadmaps, setRoadmaps] = useState<LiveRoadmap[]>([]);
   const [activeAssignment, setActiveAssignment] = useState<LiveAssignment | null>(null);
   const [attempt, setAttempt] = useState<StudentAttempt | null>(null);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<number, number | string>>({});
   const [savingQuestion, setSavingQuestion] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -193,7 +195,7 @@ export function StudentWorkspace({
       if (inProgress && matchingAssignment) {
         setAttempt(inProgress);
         setActiveAssignment(matchingAssignment);
-        setAnswers(Object.fromEntries(inProgress.answers.map((answer) => [answer.exam_question, answer.selected_option])));
+        setAnswers(Object.fromEntries(inProgress.answers.map((answer) => [answer.exam_question, answer.text_answer || answer.selected_option])));
       }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "O‘quvchi kabineti yuklanmadi.");
@@ -221,6 +223,11 @@ export function StudentWorkspace({
     return [...ordered, ...questions.filter((item) => !orderedIds.has(item.id))];
   }, [activeAssignment, attempt]);
 
+  const answeredCount = useMemo(() => orderedQuestions.filter((item) => {
+    const value = answers[item.id];
+    return typeof value === "string" ? Boolean(value.trim()) : Boolean(value);
+  }).length, [answers, orderedQuestions]);
+
   const startTest = async (assignment: LiveAssignment) => {
     setLoading(true);
     setError("");
@@ -229,7 +236,7 @@ export function StudentWorkspace({
       const nextAttempt = await apiRequest<StudentAttempt>(`/assignments/${assignment.id}/start/`, { method: "POST" });
       setActiveAssignment(assignment);
       setAttempt(nextAttempt);
-      setAnswers(Object.fromEntries(nextAttempt.answers.map((answer) => [answer.exam_question, answer.selected_option])));
+      setAnswers(Object.fromEntries(nextAttempt.answers.map((answer) => [answer.exam_question, answer.text_answer || answer.selected_option])));
       window.dispatchEvent(new Event("bilimyol-exam-start"));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Testni boshlashda xatolik.");
@@ -265,9 +272,30 @@ export function StudentWorkspace({
     }
   };
 
+  const saveTextAnswer = async (examQuestionId: number, optionId: number, value: string) => {
+    if (!attempt || !value.trim()) return;
+    setSavingQuestion(examQuestionId);
+    setError("");
+    try {
+      await apiRequest(`/attempts/${attempt.id}/answer/`, {
+        method: "POST",
+        body: JSON.stringify({
+          exam_question: examQuestionId,
+          selected_option: optionId,
+          text_answer: value.trim(),
+          is_flagged: false,
+        }),
+      });
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Yozma javob saqlanmadi.");
+    } finally {
+      setSavingQuestion(null);
+    }
+  };
+
   const submitTest = async () => {
     if (!attempt) return;
-    const unanswered = orderedQuestions.length - Object.keys(answers).length;
+    const unanswered = orderedQuestions.length - answeredCount;
     if (unanswered > 0) {
       setError(`Yana ${unanswered} ta savolga javob berilmagan.`);
       return;
@@ -275,6 +303,20 @@ export function StudentWorkspace({
     setSubmitting(true);
     setError("");
     try {
+      const manualQuestions = orderedQuestions.filter((item) =>
+        item.question_detail.options.length === 1 && item.question_detail.options[0].label === "TEXT",
+      );
+      if (manualQuestions.length) {
+        await Promise.all(manualQuestions.map((item) => apiRequest(`/attempts/${attempt.id}/answer/`, {
+          method: "POST",
+          body: JSON.stringify({
+            exam_question: item.id,
+            selected_option: item.question_detail.options[0].id,
+            text_answer: String(answers[item.id] ?? "").trim(),
+            is_flagged: false,
+          }),
+        })));
+      }
       const payload = await apiRequest<SubmitAttemptResponse>(
         `/attempts/${attempt.id}/submit/`,
         { method: "POST" },
@@ -293,15 +335,26 @@ export function StudentWorkspace({
           Object.fromEntries(
             payload.next_attempt.answers.map((answer) => [
               answer.exam_question,
-              answer.selected_option,
+              answer.text_answer || answer.selected_option,
             ]),
           ),
         );
         setNotice(
-          `${payload.report.exam?.title ?? "Birinchi test"} yakunlandi. ` +
+          `${payload.completed_title ?? payload.report?.exam?.title ?? "Birinchi test"} yakunlandi. ` +
           `${payload.next_assignment.exam_detail.title} avtomatik boshlandi.`,
         );
         window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      if ("flow" in payload && payload.flow === "pending_review") {
+        setAssignments((current) => current.filter((item) => item.id !== activeAssignment?.id));
+        setAttempt(null);
+        setActiveAssignment(null);
+        setAnswers({});
+        setNotice(payload.detail ?? "Javoblar saqlandi. Ustoz tekshiruvi kutilmoqda.");
+        setActive("overview");
+        await load();
         return;
       }
 
@@ -401,19 +454,34 @@ export function StudentWorkspace({
       {error && <div className="admin-flow-message error">{error}</div>}
       {loading && !attempt ? <LoadingState label="Testlar yuklanmoqda..." /> : attempt && activeAssignment ? (
         <section className="student-live-exam">
-          <article className="portal-card student-exam-progress"><div><span>{activeAssignment.batch_size && activeAssignment.batch_size > 1 ? `Test ${activeAssignment.batch_order ?? 1}/${activeAssignment.batch_size} · ` : ""}{activeAssignment.exam_detail.title}</span><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong></div><div><Clock3 size={18} /><strong>{Math.max(0, Math.ceil(attempt.remaining_seconds / 60))} daqiqa</strong></div></article>
+          <article className="portal-card student-exam-progress"><div><span>{activeAssignment.batch_size && activeAssignment.batch_size > 1 ? `Test ${activeAssignment.batch_order ?? 1}/${activeAssignment.batch_size} · ` : ""}{activeAssignment.exam_detail.title}</span><strong>{answeredCount}/{orderedQuestions.length} savol</strong></div><div><Clock3 size={18} /><strong>{Math.max(0, Math.ceil(attempt.remaining_seconds / 60))} daqiqa</strong></div></article>
           <div className="admin-question-stack">
             {orderedQuestions.map((examQuestion, index) => {
               const question = examQuestion.question_detail;
               return (
                 <article className="portal-card mini-question-card" key={examQuestion.id}>
                   <div className="mini-question-head"><span>{index + 1}</span><div><small>{question.subject_title}</small>{question.context && <blockquote className="mini-question-context">{question.context}</blockquote>}<h3>{question.prompt}</h3>{question.image_url && <Image className="mini-question-image" src={question.image_url} alt={question.prompt} width={1200} height={800} unoptimized />}</div>{savingQuestion === examQuestion.id && <LoaderCircle className="spin" size={18} />}</div>
-                  <div className="mini-question-options">{question.options.map((option) => <button type="button" key={option.id} className={answers[examQuestion.id] === option.id ? "selected" : ""} onClick={() => void saveAnswer(examQuestion.id, option.id)} disabled={savingQuestion === examQuestion.id}><i>{option.label}</i><span>{option.text}</span></button>)}</div>
+                  {question.options.length === 1 && question.options[0].label === "TEXT" ? (
+                    <div className="manual-answer-box">
+                      <label htmlFor={`manual-answer-${examQuestion.id}`}>Javobingiz</label>
+                      <textarea
+                        id={`manual-answer-${examQuestion.id}`}
+                        value={typeof answers[examQuestion.id] === "string" ? String(answers[examQuestion.id]) : ""}
+                        onChange={(event) => setAnswers((current) => ({ ...current, [examQuestion.id]: event.target.value }))}
+                        onBlur={(event) => void saveTextAnswer(examQuestion.id, question.options[0].id, event.target.value)}
+                        placeholder="Javobni son yoki matn ko‘rinishida yozing"
+                        rows={3}
+                      />
+                      <small>Javob ustoz tomonidan tekshiriladi.</small>
+                    </div>
+                  ) : (
+                    <div className="mini-question-options">{question.options.map((option) => <button type="button" key={option.id} className={answers[examQuestion.id] === option.id ? "selected" : ""} onClick={() => void saveAnswer(examQuestion.id, option.id)} disabled={savingQuestion === examQuestion.id}><i>{option.label}</i><span>{option.text}</span></button>)}</div>
+                  )}
                 </article>
               );
             })}
           </div>
-          <article className="portal-card admin-submit-bar"><div><strong>{Object.keys(answers).length}/{orderedQuestions.length} savol</strong><p>Natija yakunlangach kabinetda saqlanadi.</p></div><button className="portal-primary" onClick={() => void submitTest()} disabled={submitting || Object.keys(answers).length !== orderedQuestions.length}>{submitting ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />} {(activeAssignment.batch_size ?? 1) > (activeAssignment.batch_order ?? 1) ? "Keyingi testga o‘tish" : "Testlarni yakunlash"}</button></article>
+          <article className="portal-card admin-submit-bar"><div><strong>{answeredCount}/{orderedQuestions.length} savol</strong><p>Natija yakunlangach kabinetda saqlanadi.</p></div><button className="portal-primary" onClick={() => void submitTest()} disabled={submitting || Object.keys(answers).length !== orderedQuestions.length}>{submitting ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />} {(activeAssignment.batch_size ?? 1) > (activeAssignment.batch_order ?? 1) ? "Keyingi testga o‘tish" : "Testlarni yakunlash"}</button></article>
         </section>
       ) : assignments.length ? (
         <div className="student-assignment-grid">{assignments.map((assignment) => <article className="portal-card student-assignment-card" key={assignment.id}><span><ClipboardList size={24} /></span><div><small>Biriktirilgan test</small><h2>{assignment.exam_detail.title}</h2><p>{assignment.batch_size && assignment.batch_size > 1 ? `${assignment.batch_order ?? 1}/${assignment.batch_size} test · ` : ""}{assignment.exam_detail.grade}-sinf · {assignment.exam_detail.exam_questions.length} savol · {assignment.exam_detail.duration_minutes} daqiqa</p></div><button className="portal-primary" onClick={() => void startTest(assignment)} disabled={loading}>{loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}{assignment.has_attempt ? "Davom ettirish" : "Boshlash"}</button></article>)}</div>

@@ -60,9 +60,10 @@ class AnswerSerializer(serializers.ModelSerializer):
         model = StudentAnswer
         fields = [
             "id", "exam_question", "question_code", "selected_option", "selected_label",
+            "text_answer", "manual_score", "is_graded",
             "is_correct", "earned_points", "is_flagged", "answered_at",
         ]
-        read_only_fields = ["is_correct", "earned_points", "answered_at"]
+        read_only_fields = ["manual_score", "is_graded", "is_correct", "earned_points", "answered_at"]
 
 
 class AttemptSerializer(serializers.ModelSerializer):
@@ -281,6 +282,44 @@ class DiagnosticReportDetailSerializer(DiagnosticReportSerializer):
                 (option for option in question.options.all() if option.is_correct),
                 None,
             )
+            accepted_text_answers = [
+                item.strip()
+                for item in str(
+                    question.accepted_text_answers or ""
+                ).splitlines()
+                if item.strip()
+            ]
+
+            is_text_answer = bool(
+                answer
+                and answer.selected_option
+                and answer.selected_option.label == "TEXT"
+            )
+
+            selected_option_payload = self._option_payload(
+                answer.selected_option if answer else None
+            )
+
+            correct_option_payload = self._option_payload(
+                correct_option
+            )
+
+            if is_text_answer:
+                selected_option_payload = {
+                    "id": answer.selected_option_id,
+                    "label": "Yozma",
+                    "text": answer.text_answer or "Javob kiritilmagan",
+                }
+
+                correct_option_payload = {
+                    "id": 0,
+                    "label": "Kalit",
+                    "text": (
+                        accepted_text_answers[0]
+                        if accepted_text_answers
+                        else "—"
+                    ),
+                }
             rows.append({
                 "exam_question_id": exam_question.id,
                 "code": question.code,
@@ -303,14 +342,28 @@ class DiagnosticReportDetailSerializer(DiagnosticReportSerializer):
                 ],
                 "difficulty": question.difficulty,
                 "points": exam_question.points,
-                "selected_option": self._option_payload(answer.selected_option if answer else None),
-                "correct_option": self._option_payload(correct_option),
+                "selected_option": selected_option_payload,
+                "correct_option": correct_option_payload,
+                "text_answer": (
+                    answer.text_answer
+                    if answer
+                    else ""
+                ),
+                "correct_text_answer": (
+                    accepted_text_answers[0]
+                    if accepted_text_answers
+                    else ""
+                ),
                 "is_answered": answer is not None,
                 "is_correct": bool(answer and answer.is_correct),
                 "earned_points": answer.earned_points if answer else 0,
                 "is_flagged": bool(answer and answer.is_flagged),
                 "answered_at": answer.answered_at if answer else None,
-                "explanation": question.explanation,
+                "explanation": (
+                    "Javob kaliti asosida avtomatik tekshirildi."
+                    if is_text_answer and accepted_text_answers
+                    else question.explanation
+                ),
             })
         return rows
 
