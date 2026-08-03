@@ -119,7 +119,7 @@ class BulkStudentAssignmentTests(APITestCase):
         )
         return exam
 
-    def test_admin_assigns_math_and_english_with_one_password(self):
+    def test_admin_assigns_math_and_english_without_resetting_password(self):
         response = self.client.post(
             "/api/exams/assign-student-tests/",
             {
@@ -138,7 +138,28 @@ class BulkStudentAssignmentTests(APITestCase):
             2,
         )
         self.student.refresh_from_db()
+        self.assertTrue(self.student.check_password("old-student-pass"))
+        self.assertFalse(response.data["credentials"]["password_changed"])
+        self.assertIsNone(response.data["credentials"]["temporary_password"])
+
+    def test_bulk_assignment_sets_password_only_when_student_has_no_usable_password(self):
+        self.student.set_unusable_password()
+        self.student.save(update_fields=["password"])
+
+        response = self.client.post(
+            "/api/exams/assign-student-tests/",
+            {
+                "student": self.student.id,
+                "exams": [self.english_exam.id, self.math_exam.id],
+                "temporary_password": "SharedPass2026",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.student.refresh_from_db()
         self.assertTrue(self.student.check_password("SharedPass2026"))
+        self.assertTrue(response.data["credentials"]["password_changed"])
 
     def test_bulk_assignment_rejects_wrong_grade_atomically(self):
         grade_four_exam = self._create_exam("english", "English", "English 4", 4)

@@ -2,15 +2,34 @@ from datetime import timedelta
 from pathlib import Path
 import os
 
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-bilimyol-secret")
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = [item.strip() for item in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if item.strip()]
+
+def env_bool(name, default=False):
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
+DEBUG = env_bool("DEBUG", True)
+
+SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "dev-only-bilimyol-secret"
+    else:
+        raise ImproperlyConfigured("SECRET_KEY production muhitida majburiy.")
+if not DEBUG and SECRET_KEY in {"dev-only-bilimyol-secret", "change-me-in-production"}:
+    raise ImproperlyConfigured("Production uchun kuchli va noyob SECRET_KEY kiriting.")
+
+default_hosts = "localhost,127.0.0.1" if DEBUG else ""
+ALLOWED_HOSTS = [item.strip() for item in os.getenv("ALLOWED_HOSTS", default_hosts).split(",") if item.strip()]
+if not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("ALLOWED_HOSTS bo‘sh bo‘lishi mumkin emas.")
 if DEBUG and "testserver" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append("testserver")
 
@@ -65,15 +84,27 @@ TEMPLATES = [{
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-        "OPTIONS": {
-            "timeout": 60,
-        },
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=int(os.getenv("DB_CONN_MAX_AGE", "60")),
+            conn_health_checks=True,
+        )
     }
-}
+    if not DEBUG and DATABASES["default"]["ENGINE"] != "django.db.backends.postgresql":
+        raise ImproperlyConfigured("Production DATABASE_URL PostgreSQL manzili bo‘lishi kerak.")
+elif DEBUG:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+            "OPTIONS": {"timeout": 60},
+        }
+    }
+else:
+    raise ImproperlyConfigured("DATABASE_URL production muhitida majburiy.")
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -89,6 +120,8 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 STORAGES = {
     "default": {
@@ -103,8 +136,17 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 
-CORS_ALLOWED_ORIGINS = [item.strip() for item in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",") if item.strip()]
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+default_origins = "http://localhost:3000,http://localhost:5173" if DEBUG else ""
+CORS_ALLOWED_ORIGINS = [
+    item.strip()
+    for item in os.getenv("CORS_ALLOWED_ORIGINS", default_origins).split(",")
+    if item.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    item.strip()
+    for item in os.getenv("CSRF_TRUSTED_ORIGINS", ",".join(CORS_ALLOWED_ORIGINS)).split(",")
+    if item.strip()
+]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
@@ -121,6 +163,28 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+    "login": os.getenv("LOGIN_THROTTLE_RATE", "1000/min" if DEBUG else "10/min"),
+    "token_refresh": os.getenv("REFRESH_THROTTLE_RATE", "1000/min" if DEBUG else "30/min"),
+}
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
+    SECURE_REDIRECT_EXEMPT = [r"^health/$"]
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_SAMESITE = "Lax"
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "3600"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", True)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    X_FRAME_OPTIONS = "DENY"
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "BilimYo‘l API",

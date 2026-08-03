@@ -144,14 +144,30 @@ class ExamQuestionSerializer(serializers.ModelSerializer):
 class ExamSerializer(serializers.ModelSerializer):
     subject_weights = ExamSubjectWeightSerializer(many=True)
     exam_questions = ExamQuestionSerializer(many=True)
+    question_count = serializers.IntegerField(source="exam_questions.count", read_only=True)
     created_by_name = serializers.CharField(source="created_by.full_name", read_only=True)
     target_classroom_names = serializers.SlugRelatedField(source="target_classrooms", many=True, read_only=True, slug_field="name")
     recommended_category_names = serializers.SlugRelatedField(source="recommended_categories", many=True, read_only=True, slug_field="title")
 
     class Meta:
         model = Exam
-        fields = ["id", "title", "grade", "purpose", "description", "duration_minutes", "max_score", "readiness_threshold", "minimum_subject_score", "starts_at", "ends_at", "status", "target_classrooms", "target_classroom_names", "recommended_categories", "recommended_category_names", "subject_weights", "exam_questions", "created_by", "created_by_name", "created_at", "updated_at"]
+        fields = ["id", "title", "grade", "purpose", "description", "duration_minutes", "max_score", "readiness_threshold", "minimum_subject_score", "starts_at", "ends_at", "status", "target_classrooms", "target_classroom_names", "recommended_categories", "recommended_category_names", "subject_weights", "question_count", "exam_questions", "created_by", "created_by_name", "created_at", "updated_at"]
         read_only_fields = ["created_by", "created_at", "updated_at"]
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        can_manage_question_bank = bool(
+            getattr(user, "is_authenticated", False)
+            and (
+                getattr(user, "is_superuser", False)
+                or getattr(user, "role", None) in {"admin", "teacher"}
+            )
+        )
+        if not can_manage_question_bank:
+            fields.pop("exam_questions", None)
+        return fields
 
     def validate_subject_weights(self, weights):
         total = sum(item["weight_percent"] for item in weights)

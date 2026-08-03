@@ -1,9 +1,12 @@
 from django.contrib import admin
+from django.db import connections
+from django.db.utils import OperationalError
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.http import JsonResponse
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.accounts.views import ClassroomViewSet, MeView, ParentStudentViewSet, UserViewSet
 from apps.academics.views import ExamViewSet, QuestionViewSet, SkillViewSet, SubjectViewSet, TopicViewSet
@@ -18,6 +21,8 @@ from apps.profiling.views import (
     StudentInterviewViewSet,
     StudentProfileViewSet,
 )
+from config.auth_views import ThrottledTokenObtainPairView, ThrottledTokenRefreshView
+from config.permissions import ProductionAdminOrDebugAccess
 
 
 router = DefaultRouter()
@@ -48,19 +53,40 @@ router.register("conversations", ConversationViewSet, basename="conversation")
 router.register("messages", MessageViewSet, basename="message")
 
 def health_check(request):
-    return JsonResponse({
-        "status": "ok",
-        "service": "BilimYol API",
-    })
+    try:
+        with connections["default"].cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except OperationalError:
+        return JsonResponse(
+            {"status": "error", "service": "BilimYol API", "database": "unavailable"},
+            status=503,
+        )
+    return JsonResponse({"status": "ok", "service": "BilimYol API", "database": "ok"})
 
 urlpatterns = [
     path("health/", health_check, name="health-check"),
     path("admin/", admin.site.urls),
-    path("api/auth/token/", TokenObtainPairView.as_view(), name="token"),
-    path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
+    path("api/auth/token/", ThrottledTokenObtainPairView.as_view(), name="token"),
+    path("api/auth/token/refresh/", ThrottledTokenRefreshView.as_view(), name="token-refresh"),
     path("api/auth/me/", MeView.as_view(), name="me"),
     path("api/dashboard/", DashboardView.as_view(), name="dashboard"),
     path("api/", include(router.urls)),
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path(
+        "api/schema/",
+        SpectacularAPIView.as_view(
+            authentication_classes=[JWTAuthentication, SessionAuthentication],
+            permission_classes=[ProductionAdminOrDebugAccess],
+        ),
+        name="schema",
+    ),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(
+            url_name="schema",
+            authentication_classes=[JWTAuthentication, SessionAuthentication],
+            permission_classes=[ProductionAdminOrDebugAccess],
+        ),
+        name="swagger-ui",
+    ),
 ]

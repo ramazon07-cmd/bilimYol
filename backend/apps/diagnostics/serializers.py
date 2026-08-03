@@ -2,7 +2,13 @@ from rest_framework import serializers
 
 from apps.accounts.serializers import ClassroomSerializer, UserSerializer
 from apps.academics.policies import is_enabled_diagnostic_exam
-from apps.academics.serializers import ExamSerializer, SkillSerializer, SubjectSerializer, TopicSerializer
+from apps.academics.serializers import (
+    ExamQuestionSerializer,
+    ExamSerializer,
+    SkillSerializer,
+    SubjectSerializer,
+    TopicSerializer,
+)
 
 from .models import (
     DiagnosticReport,
@@ -71,13 +77,14 @@ class AttemptSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source="assignment.student.full_name", read_only=True)
     exam_title = serializers.CharField(source="assignment.exam.title", read_only=True)
     remaining_seconds = serializers.SerializerMethodField()
+    questions = serializers.SerializerMethodField()
 
     class Meta:
         model = ExamAttempt
         fields = [
             "id", "assignment", "student_name", "exam_title", "status", "started_at",
             "submitted_at", "expires_at", "remaining_seconds", "started_by", "submitted_by",
-            "earned_points", "overall_score", "is_ready", "question_order", "answers",
+            "earned_points", "overall_score", "is_ready", "question_order", "questions", "answers",
         ]
         read_only_fields = [
             "status", "started_at", "submitted_at", "expires_at", "started_by",
@@ -87,6 +94,48 @@ class AttemptSerializer(serializers.ModelSerializer):
     def get_remaining_seconds(self, obj):
         from django.utils import timezone
         return max(0, int((obj.expires_at - timezone.now()).total_seconds()))
+
+    def get_questions(self, obj):
+        from django.utils import timezone
+
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        assignment = obj.assignment
+        can_operate = bool(
+            getattr(user, "is_authenticated", False)
+            and (
+                user == assignment.student
+                or (
+                    (getattr(user, "is_superuser", False) or getattr(user, "role", None) == "admin")
+                    and assignment.delivery_mode == ExamAssignment.DeliveryMode.ADMINISTERED
+                )
+            )
+        )
+        is_active = (
+            obj.status == ExamAttempt.Status.IN_PROGRESS
+            and obj.expires_at > timezone.now()
+            and assignment.is_active
+        )
+        if not can_operate or not is_active:
+            return []
+
+        questions_by_id = {
+            item.id: item for item in assignment.exam.exam_questions.all()
+        }
+        ordered = [
+            questions_by_id[question_id]
+            for question_id in obj.question_order
+            if question_id in questions_by_id
+        ]
+        ordered_ids = {item.id for item in ordered}
+        ordered.extend(
+            item for item in questions_by_id.values() if item.id not in ordered_ids
+        )
+        return ExamQuestionSerializer(
+            ordered,
+            many=True,
+            context=self.context,
+        ).data
 
 
 class SubjectResultSerializer(serializers.ModelSerializer):

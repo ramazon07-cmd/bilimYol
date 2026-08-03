@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Prefetch, Q
 from django.utils import timezone
 from rest_framework import decorators, response, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -259,6 +259,12 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action in {"list", "retrieve"}:
             queryset = queryset.prefetch_related(
                 "answers__selected_option", "answers__exam_question__question",
+                Prefetch(
+                    "assignment__exam__exam_questions",
+                    queryset=ExamQuestion.objects.select_related(
+                        "question__subject", "question__topic"
+                    ).prefetch_related("question__skills", "question__options"),
+                ),
             )
         queryset = queryset.filter(
             assignment__exam_id__in=enabled_diagnostic_exams(

@@ -301,7 +301,8 @@ export type LiveAssignment = {
     title: string;
     grade: number | null;
     duration_minutes: number;
-    exam_questions: unknown[];
+    question_count: number;
+    exam_questions?: unknown[];
   };
   classroom: number | null;
   classroom_detail: LiveClassroom | null;
@@ -393,6 +394,16 @@ export function hasLiveApi() {
 const ACCESS_TOKEN_KEY = "bilimyol_access";
 const REFRESH_TOKEN_KEY = "bilimyol_refresh";
 
+class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 function readStoredToken(key: string) {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
@@ -425,7 +436,10 @@ async function refreshAccessToken() {
     body: JSON.stringify({ refresh }),
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    if (response.status === 400 || response.status === 401) return null;
+    throw new ApiError("Sessiyani yangilashda server xatosi yuz berdi.", response.status);
+  }
   const tokens = await response.json() as { access: string; refresh?: string };
   storeTokens({ access: tokens.access, refresh: tokens.refresh ?? refresh });
   return tokens.access;
@@ -468,9 +482,14 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
         ? "Maqsad balli 0 dan 100 gacha bo‘lishi kerak."
         : fieldName === "username"
           ? "Bu login band yoki noto‘g‘ri kiritilgan."
+          : fieldName === "password"
+            ? "Parol kamida 8 belgidan iborat va yetarlicha murakkab bo‘lishi kerak."
           : rawFieldMessage;
 
-    throw new Error(detail ?? translatedFieldMessage ?? "Server bilan ishlashda xatolik yuz berdi.");
+    throw new ApiError(
+      detail ?? translatedFieldMessage ?? "Server bilan ishlashda xatolik yuz berdi.",
+      response.status,
+    );
   }
   return payload as T;
 }
@@ -513,12 +532,23 @@ export async function loginWorkspace(username: string, password: string): Promis
 
 export async function restoreWorkspaceSession(): Promise<WorkspaceSession | null> {
   if (!apiBase || (!getAccessToken() && !getRefreshToken())) return null;
-  try {
-    return await loadWorkspaceSession();
-  } catch {
-    clearApiSession();
-    return null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await loadWorkspaceSession();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        clearApiSession();
+        return null;
+      }
+      if (attempt < 2) {
+        await new Promise((resolve) => window.setTimeout(resolve, 800 * (attempt + 1)));
+      }
+    }
   }
+
+  // Cold start, internet uzilishi yoki 5xx xatosida tokenlar saqlanib qoladi.
+  return null;
 }
 
 export function clearApiSession() {

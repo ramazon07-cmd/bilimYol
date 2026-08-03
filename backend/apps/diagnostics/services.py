@@ -486,7 +486,10 @@ def start_attempt(assignment, started_by=None):
         raise ValidationError("Bu diagnostik test hozir faol emas.")
     existing = assignment.attempts.filter(status=ExamAttempt.Status.IN_PROGRESS).first()
     if existing:
-        return existing
+        if existing.expires_at > timezone.now():
+            return existing
+        existing.status = ExamAttempt.Status.EXPIRED
+        existing.save(update_fields=["status"])
     if assignment.attempts.filter(status=ExamAttempt.Status.SUBMITTED).exists():
         raise ValidationError("Bu imtihon uchun urinish allaqachon yakunlangan.")
     question_order = list(

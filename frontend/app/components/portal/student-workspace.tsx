@@ -48,6 +48,7 @@ type StudentAttempt = {
   status: "in_progress" | "pending_review" | "submitted" | "expired";
   remaining_seconds: number;
   question_order: number[];
+  questions: Exam["exam_questions"];
   answers: { exam_question: number; selected_option: number; text_answer?: string }[];
 };
 
@@ -187,7 +188,12 @@ export function StudentWorkspace({
       });
       const nextAttempts = unpackList(attemptPayload);
       const nextReports = combineReportSummaries(unpackList(reportPayload));
-      const inProgress = nextAttempts.find((item) => item.status === "in_progress");
+      const inProgress = nextAttempts.find(
+        (item) =>
+          item.status === "in_progress"
+          && item.remaining_seconds > 0
+          && item.questions.length > 0,
+      );
       const matchingAssignment = inProgress ? nextAssignments.find((item) => item.id === inProgress.assignment) ?? null : null;
       setAssignments(nextAssignments);
       setReports(nextReports);
@@ -214,14 +220,13 @@ export function StudentWorkspace({
   const tasks = latestRoadmap?.stages.flatMap((stage) => stage.weekly_tasks) ?? [];
 
   const orderedQuestions = useMemo(() => {
-    if (!activeAssignment) return [];
-    const questions = activeAssignment.exam_detail.exam_questions as Exam["exam_questions"];
+    const questions = attempt?.questions ?? [];
     if (!attempt?.question_order.length) return questions;
     const byId = new Map(questions.map((item) => [item.id, item]));
     const ordered = attempt.question_order.map((id) => byId.get(id)).filter((item): item is Exam["exam_questions"][number] => Boolean(item));
     const orderedIds = new Set(ordered.map((item) => item.id));
     return [...ordered, ...questions.filter((item) => !orderedIds.has(item.id))];
-  }, [activeAssignment, attempt]);
+  }, [attempt]);
 
   const answeredCount = useMemo(() => orderedQuestions.filter((item) => {
     const value = answers[item.id];
@@ -484,7 +489,7 @@ export function StudentWorkspace({
           <article className="portal-card admin-submit-bar"><div><strong>{answeredCount}/{orderedQuestions.length} savol</strong><p>Natija yakunlangach kabinetda saqlanadi.</p></div><button className="portal-primary" onClick={() => void submitTest()} disabled={submitting || Object.keys(answers).length !== orderedQuestions.length}>{submitting ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />} {(activeAssignment.batch_size ?? 1) > (activeAssignment.batch_order ?? 1) ? "Keyingi testga o‘tish" : "Testlarni yakunlash"}</button></article>
         </section>
       ) : assignments.length ? (
-        <div className="student-assignment-grid">{assignments.map((assignment) => <article className="portal-card student-assignment-card" key={assignment.id}><span><ClipboardList size={24} /></span><div><small>Biriktirilgan test</small><h2>{assignment.exam_detail.title}</h2><p>{assignment.batch_size && assignment.batch_size > 1 ? `${assignment.batch_order ?? 1}/${assignment.batch_size} test · ` : ""}{assignment.exam_detail.grade}-sinf · {assignment.exam_detail.exam_questions.length} savol · {assignment.exam_detail.duration_minutes} daqiqa</p></div><button className="portal-primary" onClick={() => void startTest(assignment)} disabled={loading}>{loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}{assignment.has_attempt ? "Davom ettirish" : "Boshlash"}</button></article>)}</div>
+        <div className="student-assignment-grid">{assignments.map((assignment) => <article className="portal-card student-assignment-card" key={assignment.id}><span><ClipboardList size={24} /></span><div><small>Biriktirilgan test</small><h2>{assignment.exam_detail.title}</h2><p>{assignment.batch_size && assignment.batch_size > 1 ? `${assignment.batch_order ?? 1}/${assignment.batch_size} test · ` : ""}{assignment.exam_detail.grade}-sinf · {assignment.exam_detail.question_count} savol · {assignment.exam_detail.duration_minutes} daqiqa</p></div><button className="portal-primary" onClick={() => void startTest(assignment)} disabled={loading}>{loading ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}{assignment.has_attempt ? "Davom ettirish" : "Boshlash"}</button></article>)}</div>
       ) : <EmptyState title="Faol test yo‘q" description="Admin testni biriktirgandan keyin shu sahifada paydo bo‘ladi." icon={ClipboardList} />}
     </>
   );
