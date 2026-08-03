@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from rest_framework import decorators, response, status, viewsets
 
-from apps.accounts.permissions import IsAdminRole, ReadOnlyOrAdmin
+from apps.accounts.permissions import IsAdminRole, IsTeacherOrAdmin, ReadOnlyOrAdmin
 from apps.accounts.models import Classroom
 from apps.diagnostics.models import ExamAssignment
 from apps.communications.models import Notification
@@ -50,16 +50,21 @@ class SkillViewSet(viewsets.ModelViewSet):
 
 class QuestionViewSet(viewsets.ModelViewSet):
     serializer_class = QuestionSerializer
-    permission_classes = [ReadOnlyOrAdmin]
+    permission_classes = [IsTeacherOrAdmin]
     filterset_fields = ["subject", "topic", "difficulty", "min_grade", "max_grade", "is_active"]
     search_fields = ["code", "prompt", "topic__title", "skills__title"]
     ordering_fields = ["code", "created_at", "difficulty"]
 
+    def get_permissions(self):
+        permission_classes = (
+            [IsTeacherOrAdmin]
+            if self.request.method in {"GET", "HEAD", "OPTIONS"}
+            else [IsAdminRole]
+        )
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
-        queryset = Question.objects.select_related("subject", "topic").prefetch_related("skills", "options")
-        if self.request.user.role == "student":
-            return queryset.none()
-        return queryset
+        return Question.objects.select_related("subject", "topic").prefetch_related("skills", "options")
 
 
 class ExamViewSet(viewsets.ModelViewSet):
@@ -178,15 +183,21 @@ class ExamViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if requested_password and len(requested_password) < 8:
-            return response.Response(
-                {"detail": "Vaqtinchalik parol kamida 8 belgidan iborat bo‘lishi kerak."},
-                status=status.HTTP_400_BAD_REQUEST,
+        temporary_password = None
+        password_changed = False
+        if not student.has_usable_password():
+            if requested_password and len(requested_password) < 8:
+                return response.Response(
+                    {"detail": "Vaqtinchalik parol kamida 8 belgidan iborat bo‘lishi kerak."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            temporary_password = requested_password or get_random_string(
+                10,
+                allowed_chars="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789",
             )
-        temporary_password = requested_password or get_random_string(
-            10,
-            allowed_chars="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789",
-        )
+            student.set_password(temporary_password)
+            student.save(update_fields=["password"])
+            password_changed = True
 
         assignment = ExamAssignment.objects.filter(exam=exam, student=student, is_active=True).first()
         created = assignment is None
@@ -198,8 +209,6 @@ class ExamViewSet(viewsets.ModelViewSet):
         assignment.delivery_mode = ExamAssignment.DeliveryMode.SELF
         assignment.administered_by = None
         assignment.save()
-        student.set_password(temporary_password)
-        student.save(update_fields=["password"])
         if profile:
             profile.status = profile.Status.TEST_ASSIGNED
             profile.save(update_fields=["status", "updated_at"])
@@ -219,6 +228,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             "credentials": {
                 "username": student.username,
                 "temporary_password": temporary_password,
+                "password_changed": password_changed,
             },
         })
 
@@ -312,15 +322,21 @@ class ExamViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if requested_password and len(requested_password) < 8:
-            return response.Response(
-                {"detail": "Vaqtinchalik parol kamida 8 belgidan iborat bo‘lishi kerak."},
-                status=status.HTTP_400_BAD_REQUEST,
+        temporary_password = None
+        password_changed = False
+        if not student.has_usable_password():
+            if requested_password and len(requested_password) < 8:
+                return response.Response(
+                    {"detail": "Vaqtinchalik parol kamida 8 belgidan iborat bo‘lishi kerak."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            temporary_password = requested_password or get_random_string(
+                10,
+                allowed_chars="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789",
             )
-        temporary_password = requested_password or get_random_string(
-            10,
-            allowed_chars="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789",
-        )
+            student.set_password(temporary_password)
+            student.save(update_fields=["password"])
+            password_changed = True
 
         batch_id = uuid.uuid4()
         batch_size = len(exams)
@@ -362,8 +378,6 @@ class ExamViewSet(viewsets.ModelViewSet):
                 metadata={"assignment_id": assignment.id, "exam_id": exam.id},
             )
 
-        student.set_password(temporary_password)
-        student.save(update_fields=["password"])
         if profile:
             profile.status = profile.Status.TEST_ASSIGNED
             profile.save(update_fields=["status", "updated_at"])
@@ -377,8 +391,8 @@ class ExamViewSet(viewsets.ModelViewSet):
                 "credentials": {
                     "username": student.username,
                     "temporary_password": temporary_password,
+                    "password_changed": password_changed,
                 },
             },
             status=status.HTTP_201_CREATED,
         )
-

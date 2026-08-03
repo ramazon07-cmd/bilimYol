@@ -5,12 +5,14 @@ import {
   ClipboardCopy,
   ClipboardList,
   Eye,
+  EyeOff,
   GraduationCap,
   KeyRound,
   LoaderCircle,
   RotateCcw,
   Save,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   UserRound,
   XCircle,
@@ -48,7 +50,8 @@ type BulkAssignmentResponse = {
   student: string;
   credentials: {
     username: string;
-    temporary_password: string;
+    temporary_password: string | null;
+    password_changed: boolean;
   };
 };
 
@@ -78,7 +81,6 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
   const [recommendedExams, setRecommendedExams] = useState<Exam[]>([]);
   const [selectedExamIds, setSelectedExamIds] = useState<number[]>([]);
   const [assignmentIds, setAssignmentIds] = useState<number[]>([]);
-  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [credentials, setCredentials] = useState<BulkAssignmentResponse["credentials"] | null>(null);
   const [history, setHistory] = useState<LiveDiagnosticReport[]>([]);
   const [historyError, setHistoryError] = useState("");
@@ -87,6 +89,12 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
   const [selectedReport, setSelectedReport] = useState<LiveDiagnosticReportDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordEditorOpen, setPasswordEditorOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordUpdated, setPasswordUpdated] = useState(false);
+  const [credentialsCopied, setCredentialsCopied] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -156,10 +164,53 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
     setRecommendedExams([]);
     setSelectedExamIds([]);
     setAssignmentIds([]);
-    setTemporaryPassword("");
     setCredentials(null);
+    setPasswordEditorOpen(false);
+    setShowPassword(false);
+    setNewPassword("");
+    setPasswordUpdated(false);
+    setCredentialsCopied(false);
     setError("");
     setNotice("");
+  };
+
+  const updateStudentPassword = async () => {
+    if (!selectedProfile) {
+      setError("Avval o‘quvchini tanlang.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Yangi parol kamida 8 belgidan iborat bo‘lishi kerak.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    setError("");
+    try {
+      await apiRequest(`/users/${selectedProfile.student.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ password: newPassword }),
+      });
+      setPasswordUpdated(true);
+      setNotice(`${selectedProfile.student.full_name} uchun yangi parol saqlandi.`);
+    } catch (requestError) {
+      setPasswordUpdated(false);
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Parolni yangilab bo‘lmadi.",
+      );
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const copyCredentials = async (username: string, password?: string | null) => {
+    await navigator.clipboard.writeText(
+      password ? `Login: ${username}\nParol: ${password}` : `Login: ${username}`,
+    );
+    setCredentialsCopied(true);
+    window.setTimeout(() => setCredentialsCopied(false), 1800);
   };
 
   const loadRecommendations = async () => {
@@ -264,7 +315,6 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
             student: selectedProfile.student.id,
             exams: selectedExamIds,
             classroom: null,
-            temporary_password: temporaryPassword.trim() || undefined,
           }),
         },
       );
@@ -314,7 +364,7 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
         <div>
           <span>Qabul diagnostikasi</span>
           <h1>Diagnostik testni biriktirish</h1>
-          <p>Admin bir yoki bir nechta testni biriktiradi va credential beradi. O‘quvchi o‘z kabinetida mustaqil ishlaydi.</p>
+          <p>Admin testlarni tanlaydi, kirish ma’lumotlarini tekshiradi va o‘quvchiga biriktiradi.</p>
         </div>
         {assignmentIds.length > 0 && (
           <button className="portal-secondary" onClick={resetFlow}>
@@ -388,39 +438,107 @@ export function AdminTestsPanel({ selectedProfileId: initialSelectedProfileId = 
                     );
                   })}
                 </div>
-                {!assignmentIds.length ? (
-                  <>
-                    <label className="admin-field">
-                      <span>Vaqtinchalik parol</span>
-                      <input
-                        type="text"
-                        minLength={8}
-                        value={temporaryPassword}
-                        onChange={(event) => setTemporaryPassword(event.target.value)}
-                        placeholder="Bo‘sh qoldirilsa avtomatik yaratiladi"
-                      />
-                      <small>Topilgan testlar avtomatik tanlandi. Parol barcha tanlangan testlar uchun bir xil bo‘ladi.</small>
-                    </label>
-                    <button className="portal-primary" onClick={assignExams} disabled={loading || selectedExamIds.length === 0}>
-                      {loading ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}
-                      {selectedExamIds.length > 1 ? `${selectedExamIds.length} ta testni biriktirish` : "Testni biriktirish"}
+                <div className="admin-access-card">
+                  <div className="admin-access-card-head">
+                    <span><KeyRound size={19} /></span>
+                    <div>
+                      <strong>Kirish ma’lumotlari</strong>
+                      <small>Test biriktirish parolni o‘zgartirmaydi.</small>
+                    </div>
+                    <em><ShieldCheck size={14} /> Himoyalangan</em>
+                  </div>
+                  <div className="admin-access-summary">
+                    <span>Login</span>
+                    <strong>@{selectedProfile?.student.username}</strong>
+                    <small>Mavjud parol saqlanadi</small>
+                  </div>
+                  {!passwordEditorOpen ? (
+                    <button
+                      type="button"
+                      className="admin-password-toggle"
+                      onClick={() => {
+                        setPasswordEditorOpen(true);
+                        setPasswordUpdated(false);
+                        setError("");
+                      }}
+                    >
+                      <KeyRound size={15} /> Parolni alohida yangilash
                     </button>
-                  </>
+                  ) : (
+                    <div className="admin-password-editor">
+                      <label htmlFor="admin-new-student-password">Yangi vaqtinchalik parol</label>
+                      <div>
+                        <input
+                          id="admin-new-student-password"
+                          type={showPassword ? "text" : "password"}
+                          minLength={8}
+                          value={newPassword}
+                          onChange={(event) => {
+                            setNewPassword(event.target.value);
+                            setPasswordUpdated(false);
+                          }}
+                          placeholder="Kamida 8 belgi"
+                          autoComplete="new-password"
+                        />
+                        <button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Parolni yashirish" : "Parolni ko‘rsatish"}>
+                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </div>
+                      <small>Bu alohida amal: tanlangan testlarga ta’sir qilmaydi.</small>
+                      <div className="admin-password-actions">
+                        <button
+                          type="button"
+                          className="portal-secondary"
+                          onClick={() => {
+                            setPasswordEditorOpen(false);
+                            setNewPassword("");
+                            setPasswordUpdated(false);
+                            setError("");
+                          }}
+                        >
+                          Bekor qilish
+                        </button>
+                        <button type="button" className="portal-primary" onClick={updateStudentPassword} disabled={passwordSaving || newPassword.length < 8}>
+                          {passwordSaving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}
+                          {passwordUpdated ? "Parol saqlandi" : "Parolni saqlash"}
+                        </button>
+                      </div>
+                      {passwordUpdated && (
+                        <button type="button" className="admin-copy-inline" onClick={() => void copyCredentials(selectedProfile?.student.username ?? "", newPassword)}>
+                          {credentialsCopied ? <CheckCircle2 size={15} /> : <ClipboardCopy size={15} />}
+                          {credentialsCopied ? "Nusxalandi" : "Login va yangi parolni nusxalash"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {!assignmentIds.length ? (
+                  <button className="portal-primary admin-assign-button" onClick={assignExams} disabled={loading || selectedExamIds.length === 0}>
+                    {loading ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />}
+                    {selectedExamIds.length > 1 ? `${selectedExamIds.length} ta testni biriktirish` : "Testni biriktirish"}
+                  </button>
                 ) : (
                   credentials && (
                     <div className="admin-credential-card">
-                      <div><KeyRound size={20} /><span><strong>O‘quvchiga beriladigan ma’lumot</strong><small>{assignmentIds.length} ta test bitta akkauntga biriktirildi.</small></span></div>
-                      <label><span>Login</span><strong>{credentials.username}</strong></label>
-                      <label><span>Vaqtinchalik parol</span><strong>{credentials.temporary_password}</strong></label>
+                      <div className="admin-credential-head"><CheckCircle2 size={20} /><span><strong>Testlar muvaffaqiyatli biriktirildi</strong><small>{assignmentIds.length} ta test bitta akkauntga biriktirildi.</small></span></div>
+                      <div className="admin-credential-fields">
+                        <label><span>Login</span><strong>{credentials.username}</strong></label>
+                        <label><span>Parol holati</span><strong className="credential-status">{credentials.password_changed || passwordUpdated ? "Yangi parol tayyor" : "Mavjud parol saqlandi"}</strong></label>
+                      </div>
+                      {(credentials.temporary_password || passwordUpdated) && (
+                        <label className="admin-temporary-password"><span>O‘quvchiga beriladigan parol</span><strong>{credentials.temporary_password || newPassword}</strong></label>
+                      )}
+                      <p><ShieldCheck size={15} /> {credentials.password_changed ? "Akkauntda parol bo‘lmagani uchun xavfsiz vaqtinchalik parol yaratildi." : "Test biriktirishning o‘zi o‘quvchi parolini almashtirmadi."}</p>
                       <button
                         type="button"
                         className="portal-secondary"
-                        onClick={() => void navigator.clipboard.writeText(
-                          `Login: ${credentials.username}
-Parol: ${credentials.temporary_password}`,
+                        onClick={() => void copyCredentials(
+                          credentials.username,
+                          credentials.temporary_password || (passwordUpdated ? newPassword : null),
                         )}
                       >
-                        <ClipboardCopy size={16} /> Login va parolni nusxalash
+                        {credentialsCopied ? <CheckCircle2 size={16} /> : <ClipboardCopy size={16} />}
+                        {credentialsCopied ? "Nusxalandi" : (credentials.temporary_password || passwordUpdated ? "Login va parolni nusxalash" : "Loginni nusxalash")}
                       </button>
                     </div>
                   )

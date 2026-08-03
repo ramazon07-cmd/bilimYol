@@ -1,5 +1,7 @@
 # RBIS Academic Diagnostic
 
+Production deploy: [Contabo VPS yo‘riqnomasi](deploy/CONTABO.md)
+
 Prezident maktabiga tayyorgarlik uchun sinfga mos testlarni boshqaradigan, natijani fan, mavzu va ko‘nikma bo‘yicha tahlil qiladigan, o‘quvchiga shaxsiy roadmap hamda Dream University progressini ko‘rsatadigan full-stack MVP.
 
 ## RBIS dizayn tizimi

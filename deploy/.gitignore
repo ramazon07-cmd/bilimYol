@@ -1,0 +1,6 @@
+.env.production
+backups/
+certbot/conf/
+certbot/www/
+nginx/runtime/*.conf
+!nginx/runtime/.gitkeep
